@@ -1,0 +1,184 @@
+---
+layout: default
+---
+
+<article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
+    
+    <div class="post-meta">
+      <time class="dt-published" datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
+        {{ page.date | date: site.date_format }}
+      </time>
+      
+      {% if page.views %}
+        <span class="post-views">
+          👁 {{ page.views }} просмотров
+        </span>
+      {% endif %}
+      
+      {% if page.author %}
+        <span itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <span class="p-author h-card" itemprop="name">{{ page.author }}</span>
+        </span>
+      {% endif %}
+    </div>
+
+    {% if page.tags and page.tags.size > 0 %}
+      <div class="post-tags">
+        {% for tag in page.tags %}
+          <a href="{{ '/tags/' | append: tag | append: '/' | relative_url }}" class="post-tag">
+            #{{ tag }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if page.telegraph_url or page.telegram_url %}
+      <div class="post-links">
+        {% if page.telegraph_url %}
+          <a href="{{ page.telegraph_url }}" target="_blank" rel="noopener">
+            📖 Читать на Telegraph
+          </a>
+        {% endif %}
+        {% if page.telegram_url %}
+          <a href="{{ page.telegram_url }}" target="_blank" rel="noopener">
+            💬 Пост в Telegram
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    {{ content }}
+  </div>
+
+  {% if site.disqus.shortname %}
+    {% include disqus_comments.html %}
+  {% endif %}
+
+  <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
+</article>
+
+<style>
+.post-meta {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.post-views {
+  font-weight: 500;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.post-tag {
+  padding: 0.3rem 0.8rem;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 20px;
+  text-decoration: none;
+  color: #495057;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.post-tag:hover {
+  background-color: #e9ecef;
+  text-decoration: none;
+  color: #495057;
+}
+
+.post-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+}
+
+.post-links a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.post-links a:hover {
+  text-decoration: underline;
+}
+
+.post-content {
+  line-height: 1.7;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.post-content blockquote {
+  border-left: 4px solid #007bff;
+  padding-left: 1rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  color: #6c757d;
+}
+
+.post-content code {
+  background-color: #f8f9fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.post-content pre {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.post-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .post-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .post-links {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .post-tags {
+    gap: 0.3rem;
+  }
+  
+  .post-tag {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+  }
+}
+</style>

@@ -1,0 +1,7 @@
+aiohttp>=3.8.0
+aiofiles>=22.1.0
+beautifulsoup4>=4.11.0
+html2text>=2020.1.16
+PyYAML>=6.0
+telethon>=1.28.0
+lxml>=4.9.0

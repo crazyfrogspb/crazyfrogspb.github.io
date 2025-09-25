@@ -1,0 +1,73 @@
+name: Manual Telegraph Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_resync:
+        description: 'Force re-sync all posts (ignore cache)'
+        required: false
+        default: false
+        type: boolean
+      limit_messages:
+        description: 'Limit number of messages to process'
+        required: false
+        default: '1000'
+        type: string
+
+jobs:
+  manual-sync:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Clear cache if force resync
+      if: ${{ github.event.inputs.force_resync == 'true' }}
+      run: |
+        rm -f .processed_urls.json
+        echo "Cache cleared for force resync"
+    
+    - name: Run Telegraph sync
+      env:
+        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        MESSAGE_LIMIT: ${{ github.event.inputs.limit_messages }}
+      run: |
+        cd scripts
+        python sync_telegraph.py
+    
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if [[ -n $(git status --porcelain) ]]; then
+          git add .
+          
+          if [[ "${{ github.event.inputs.force_resync }}" == "true" ]]; then
+            git commit -m "Manual sync: Force re-sync all posts $(date '+%Y-%m-%d %H:%M')"
+          else
+            git commit -m "Manual sync: Update Telegraph posts $(date '+%Y-%m-%d %H:%M')"
+          fi
+          
+          git push
+          echo "✅ Changes committed and pushed"
+        else
+          echo "ℹ️ No changes detected"
+        fi

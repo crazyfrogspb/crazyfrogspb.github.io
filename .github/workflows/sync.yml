@@ -1,0 +1,105 @@
+name: Sync Telegraph Posts and Deploy
+
+on:
+  schedule:
+    # Запускаем каждый день в 6:00 UTC (9:00 MSK)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Позволяет запускать вручную
+  push:
+    branches: [ main ]
+    paths:
+      - '_posts/**'
+      - '_config.yml'
+      - 'index.html'
+      - '_layouts/**'
+      - 'assets/**'
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.1'
+        bundler-cache: true
+    
+    - name: Install Jekyll dependencies
+      run: |
+        bundle install
+    
+    - name: Sync Telegraph posts
+      env:
+        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      run: |
+        cd scripts
+        python sync_telegraph.py
+    
+    - name: Check for changes
+      id: changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Проверяем, есть ли изменения
+        if [[ -n $(git status --porcelain) ]]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          
+          # Коммитим изменения
+          git add .
+          git commit -m "Auto-sync: Update Telegraph posts $(date '+%Y-%m-%d %H:%M')"
+          git push
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No changes detected"
+        fi
+    
+    - name: Build Jekyll site
+      run: |
+        bundle exec jekyll build --destination ./_site
+      env:
+        JEKYLL_ENV: production
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: ./_site
+    
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
+    
+    - name: Notify on success
+      if: steps.changes.outputs.changes == 'true'
+      run: |
+        echo "✅ Successfully synced and deployed new posts"
+    
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Sync or deployment failed"

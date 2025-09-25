@@ -1,0 +1,74 @@
+{
+  "posts": [
+    {
+      "title": "ИИ-инструменты в разработке - Opinionated Guide",
+      "url": "/2025/09/22/ии-инструменты-в-разработке-opinionated-guide/",
+      "date": "2025-09-22 14:11:01 +0000",
+      "tags": [
+        "llm",
+        "жека"
+      ],
+      "views": 0,
+      "excerpt": "ИИ-инструменты в разработке - Opinionated Guide   Evgenii Nikitin   Недавно мы провели опрос по использованию ИИ-инструментов в техотделе. Оказалось,...",
+      "telegraph_url": "https://telegra.ph/II-instrumenty-v-razrabotke-09-20",
+      "telegram_url": "https://t.me/varim_ml/164"
+    },
+    {
+      "title": "LLM-агенты в медицине",
+      "url": "/2025/08/29/llm-агенты-в-медицине/",
+      "date": "2025-08-29 15:33:01 +0000",
+      "tags": [
+        "llm",
+        "жека"
+      ],
+      "views": 0,
+      "excerpt": "LLM-агенты в медицине   Evgeniy Nikitin   Раз в месяц во всех телеграм-каналах про AI/LLM появляются новости в духе - \"ИИ сдал экзамен по медицине...",
+      "telegraph_url": "https://telegra.ph/LLM-agenty-v-medicine-08-25",
+      "telegram_url": "https://t.me/varim_ml/163"
+    },
+    {
+      "title": "Тестовый пост для проверки функциональности",
+      "url": "/2024/09/25/test-post/",
+      "date": "2024-09-25 14:00:00 +0300",
+      "tags": [
+        "тест",
+        "машинное-обучение",
+        "python"
+      ],
+      "views": 1234,
+      "excerpt": "Это тестовый пост для проверки работы фильтрации, сортировки и отображения контента на сайте.",
+      "telegraph_url": "https://telegra.ph/Test-Post-09-25",
+      "telegram_url": "https://t.me/varim_ml/123"
+    },
+    {
+      "title": "Введение в нейронные сети",
+      "url": "/2024/09/24/neural-networks/",
+      "date": "2024-09-24 10:30:00 +0300",
+      "tags": [
+        "нейронные-сети",
+        "deep-learning",
+        "python"
+      ],
+      "views": 2567,
+      "excerpt": "Базовые концепции нейронных сетей и их применение в машинном обучении.",
+      "telegraph_url": "https://telegra.ph/Neural-Networks-Intro-09-24",
+      "telegram_url": "https://t.me/varim_ml/122"
+    },
+    {
+      "title": "Предобработка данных в машинном обучении",
+      "url": "/2024/09/23/data-preprocessing/",
+      "date": "2024-09-23 16:45:00 +0300",
+      "tags": [
+        "данные",
+        "preprocessing",
+        "pandas"
+      ],
+      "views": 1890,
+      "excerpt": "Основные методы и техники предобработки данных для задач машинного обучения.",
+      "telegraph_url": "https://telegra.ph/Data-Preprocessing-09-23",
+      "telegram_url": "https://t.me/varim_ml/121"
+    }
+  ],
+  "last_updated": "2025-09-25T16:40:28.342266",
+  "total_posts": 5
+}
