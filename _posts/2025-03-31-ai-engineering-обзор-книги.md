@@ -1,7 +1,10 @@
 ---
 date: 2025-03-31 16:25:03 +0000
-excerpt: AI Engineering - обзор книги   Evgenii Nikitinhttps://t.me/crazyfrogspb   Сколько
-  копий сломано вокруг определения термина AI... В этой книге Чип...
+excerpt: 'Обзор книги по AI Engineering, фокусирующейся преимущественно на больших
+  языковых моделях (LLM) и их практическом применении в продакшене. Пост раскрывает
+  ключевые подходы к работе с LLM-системами: от оценки и тестирования до оптимизации
+  инференса и построения архитектуры, делясь практическими инсайтами и методологиями
+  из книги.'
 layout: post
 source_type: telegraph
 source_url: https://telegra.ph/AI-Engineering---obzor-knigi-03-31
@@ -12,7 +15,7 @@ tags:
 telegram_url: https://t.me/varim_ml/148
 telegraph_url: https://telegra.ph/AI-Engineering---obzor-knigi-03-31
 title: AI Engineering - обзор книги
-views: 0
+views: 3457
 ---
 
 # AI Engineering - обзор книги  

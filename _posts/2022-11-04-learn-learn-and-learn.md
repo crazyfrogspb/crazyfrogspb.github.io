@@ -1,18 +1,21 @@
 ---
 date: 2022-11-04 17:09:06 +0000
-excerpt: Learn, Learn and Learn   Жека Никитин   Иногда я пишу посты, в которых нет
-  сильной ML-специфики - например, про менеджмент или свой опыт. Немудрено,...
+excerpt: Пост рассказывает о личном опыте обучения в трёх университетах, с акцентом
+  на первое высшее образование в Финэке. Автор делится воспоминаниями о студенческих
+  годах, описывает плюсы и минусы образовательной системы, а также вспоминает наиболее
+  интересные и полезные курсы, которые стали фундаментом для дальнейшей карьеры в
+  data science.
 layout: post
 source_type: telegraph
 source_url: https://telegra.ph/Learn-Learn-and-Learn-11-03
 tags:
-- жека
 - machinelearning
 - life
+- жека
 telegram_url: https://t.me/varim_ml/71
 telegraph_url: https://telegra.ph/Learn-Learn-and-Learn-11-03
 title: Learn, Learn and Learn
-views: 0
+views: 3517
 ---
 
 # Learn, Learn and Learn  

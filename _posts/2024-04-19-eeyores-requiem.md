@@ -1,7 +1,9 @@
 ---
 date: 2024-04-19 16:44:03 +0000
-excerpt: Eeyore’s Requiem   Evgenii Nikitinhttps://t.me/crazyfrogspb   !/assets/images/099857ed.png  Состав
-  Коктейль является вариацией на классический...
+excerpt: Eeyore's Requiem - необычный коктейль на основе кампари с повышенным содержанием
+  горького ликера, который является вариацией классического негрони. Напиток имеет
+  сложный вкус с травянистыми нотками и интенсивным послевкусием, подойдет любителям
+  горьких аперитивов.
 layout: post
 source_type: telegraph
 source_url: https://telegra.ph/Eeyores-Requiem-04-19
@@ -11,7 +13,7 @@ tags:
 telegram_url: https://t.me/varim_ml/123
 telegraph_url: https://telegra.ph/Eeyores-Requiem-04-19
 title: Eeyore’s Requiem
-views: 0
+views: 3751
 ---
 
 # Eeyore’s Requiem  

@@ -1,18 +1,20 @@
 ---
 date: 2022-07-14 15:18:01 +0000
-excerpt: Книга ML Design Patterns   Evgenii Nikitinhttps://t.me/crazyfrogspb   Недавно
-  вернул себе старую привычку - чтение книг, чему несказанно рад. Одна из...
+excerpt: Книга "ML Design Patterns" представляет собой сборник рецептов по машинному
+  обучению, охватывающих различные аспекты - от представления данных до сервинга моделей
+  и ответственного ML. Книга будет полезна начинающим ML-инженерам и исследователям,
+  которые хотят расширить свои знания и практические навыки в области машинного обучения.
 layout: post
 source_type: telegraph
 source_url: https://telegra.ph/Kniga-ML-Design-Patterns-07-14
 tags:
 - books
-- жека
 - ml
+- жека
 telegram_url: https://t.me/varim_ml/59
 telegraph_url: https://telegra.ph/Kniga-ML-Design-Patterns-07-14
 title: Книга ML Design Patterns
-views: 0
+views: 2583
 ---
 
 # Книга ML Design Patterns  

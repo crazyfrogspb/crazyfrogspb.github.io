@@ -5,3 +5,5 @@ html2text>=2020.1.16
 PyYAML>=6.0
 telethon>=1.28.0
 lxml>=4.9.0
+openai>=1.0.0
+python-dotenv>=1.0.0

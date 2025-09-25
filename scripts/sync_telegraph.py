@@ -20,6 +20,7 @@ import html2text
 import yaml
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from telethon import TelegramClient
 from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
 
@@ -36,6 +37,15 @@ class TelegraphSyncer:
         self.api_id = os.getenv("TELEGRAM_API_ID")
         self.api_hash = os.getenv("TELEGRAM_API_HASH")
         self.channel_username = "varim_ml"
+
+        # OpenRouter для генерации саммари
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        self.openai_client = None
+        if self.openrouter_api_key:
+            self.openai_client = AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=self.openrouter_api_key,
+            )
 
         # Пути
         self.root_dir = Path(__file__).parent.parent
@@ -198,17 +208,33 @@ class TelegraphSyncer:
         # Приводим к нижнему регистру и убираем дубликаты
         return list(set(tag.lower() for tag in hashtags))
 
-    async def download_telegraph_content(self, url: str, max_retries: int = 3) -> Optional[Dict]:
+    async def download_telegraph_content(self, url: str, max_retries: int = 5) -> Optional[Dict]:
         """Скачивает контент Telegraph статьи с повторными попытками"""
         for attempt in range(max_retries):
             try:
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Увеличиваем таймаут для медленных соединений
+                timeout = aiohttp.ClientTimeout(total=60, connect=30)
+
+                # Добавляем заголовки для обхода блокировок
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                    "Accept-Encoding": "gzip, deflate",
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1",
+                }
+
+                async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                    logger.info(f"Попытка {attempt + 1}/{max_retries}: загружаем {url}")
+
                     async with session.get(url) as response:
                         if response.status != 200:
-                            logger.warning(f"Ошибка загрузки {url}: {response.status}")
+                            logger.warning(f"HTTP {response.status} для {url}")
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(2**attempt)  # Экспоненциальная задержка
+                                delay = min(2**attempt * 2, 30)  # Максимум 30 секунд
+                                logger.info(f"Ждем {delay} секунд перед повтором...")
+                                await asyncio.sleep(delay)
                                 continue
                             return None
 
@@ -231,17 +257,40 @@ class TelegraphSyncer:
                         # Конвертируем в Markdown
                         content = self.h2t.handle(str(article))
 
+                        # Убираем имена автора, которые Telegraph добавляет автоматически
+                        content = self.clean_telegraph_author(content)
+
                         # Извлекаем просмотры
                         views = self.extract_views(soup)
 
+                        logger.info(f"Успешно загружен контент: {title}")
                         return {"title": title, "content": content, "views": views, "url": url}
 
-            except Exception as e:
-                logger.error(f"Ошибка загрузки {url} (попытка {attempt + 1}/{max_retries}): {e}")
+            except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
+                logger.error(f"Сетевая ошибка для {url} (попытка {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(2**attempt)  # Экспоненциальная задержка
+                    delay = min(5 * (2**attempt), 60)  # Для сетевых ошибок ждем дольше
+                    logger.info(f"Сетевая ошибка, ждем {delay} секунд...")
+                    await asyncio.sleep(delay)
                     continue
 
+            except asyncio.TimeoutError as e:
+                logger.error(f"Таймаут для {url} (попытка {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    delay = min(3 * (2**attempt), 45)
+                    logger.info(f"Таймаут, ждем {delay} секунд...")
+                    await asyncio.sleep(delay)
+                    continue
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка для {url} (попытка {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    delay = min(2**attempt, 20)
+                    logger.info(f"Общая ошибка, ждем {delay} секунд...")
+                    await asyncio.sleep(delay)
+                    continue
+
+        logger.error(f"Не удалось загрузить {url} после {max_retries} попыток")
         return None
 
     async def download_google_docs_content(self, url: str, max_retries: int = 3) -> Optional[Dict]:
@@ -431,6 +480,31 @@ class TelegraphSyncer:
             logger.warning(f"Ошибка обработки Google-изображения {src}: {e}")
             return src
 
+    def clean_telegraph_author(self, content: str) -> str:
+        """Убирает имена автора, которые Telegraph добавляет в начало статьи"""
+        # Список возможных имен автора для удаления
+        author_names = ["Evgeniy Nikitin", "Evgenii Nikitin", "Евгений Никитин", "Евгений", "Evgeniy", "Evgenii"]
+
+        lines = content.split("\n")
+        cleaned_lines = []
+
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Пропускаем первые несколько строк, если они содержат только имя автора
+            if i < 3 and line_stripped in author_names:
+                continue
+
+            # Убираем строки, которые начинаются с имени автора и содержат мало текста
+            if i < 5:  # Проверяем только первые 5 строк
+                starts_with_author = any(line_stripped.startswith(name) for name in author_names)
+                if starts_with_author and len(line_stripped) < 50:
+                    continue
+
+            cleaned_lines.append(line)
+
+        return "\n".join(cleaned_lines)
+
     def extract_views(self, soup) -> int:
         """Извлекает количество просмотров"""
         try:
@@ -488,17 +562,20 @@ class TelegraphSyncer:
         else:
             source_type = "unknown"
 
+        # Генерируем саммари
+        excerpt = await self.generate_summary(content_data["content"], title)
+
         # Front matter
         front_matter = {
             "layout": "post",
             "title": title,
             "date": date.strftime("%Y-%m-%d %H:%M:%S %z"),
             "tags": message_data["hashtags"],
-            "views": content_data["views"],
+            "views": content_data.get("telegram_views", message_data["views"]),
             "source_type": source_type,
             "source_url": source_url,
             "telegram_url": message_data["url"],
-            "excerpt": self.create_excerpt(content_data["content"]),
+            "excerpt": excerpt,
         }
 
         # Добавляем специфичные поля для Telegraph
@@ -514,6 +591,53 @@ class TelegraphSyncer:
             await f.write(content)
 
         logger.info(f"Создан пост: {filename}")
+
+    async def generate_summary(self, content: str, title: str) -> str:
+        """Генерирует краткое саммари поста через LLM"""
+        if not self.openai_client:
+            logger.warning("OpenRouter API ключ не настроен, используем простое извлечение")
+            return self.create_excerpt(content)
+
+        try:
+            # Очищаем контент от Markdown разметки для анализа
+            clean_content = re.sub(r"!\[.*?\]\(.*?\)", "", content)  # Убираем изображения
+            clean_content = re.sub(r"\[.*?\]\(.*?\)", "", clean_content)  # Убираем ссылки
+            clean_content = re.sub(r"[#*`_~]", "", clean_content)  # Убираем Markdown символы
+            clean_content = re.sub(r"\n+", " ", clean_content)  # Убираем переносы строк
+            clean_content = clean_content.strip()
+
+            # Ограничиваем длину для экономии токенов
+            if len(clean_content) > 8000:
+                clean_content = clean_content[:8000] + "..."
+
+            prompt = f"""Создай краткое саммари (2-3 предложения) для поста на русском языке. Никак не оценивай личность или опыт автора, не добавляй эмоций, просто опиши, о чём пост.
+
+Заголовок: {title}
+
+Содержание:
+{clean_content}
+
+Саммари должно быть информативным для читателя. Авторский стиль саммери должен максимально соответствовать стилю поста. Не говори об "авторе" в третье лице, просто пиши, о чём пост. Отвечай только текстом саммари без дополнительных комментариев."""
+
+            response = await self.openai_client.chat.completions.create(
+                model="anthropic/claude-3.5-haiku",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,
+                temperature=0.5,
+            )
+
+            summary = response.choices[0].message.content.strip()
+
+            # Проверяем длину и обрезаем если нужно
+            if len(summary) > 1000:
+                summary = summary[:997] + "..."
+
+            logger.info(f"Сгенерировано саммари: {summary[:50]}...")
+            return summary
+
+        except Exception as e:
+            logger.warning(f"Ошибка генерации саммари: {e}")
+            return self.create_excerpt(content)
 
     def create_excerpt(self, content: str) -> str:
         """Создает краткое описание поста"""
@@ -617,6 +741,9 @@ title: "Посты с тегом #{tag}"
 
                 if not content_data:
                     continue
+
+                # Добавляем просмотры из Telegram в content_data
+                content_data["telegram_views"] = message["views"]
 
                 # Создаем пост
                 await self.create_jekyll_post(content_data, message)

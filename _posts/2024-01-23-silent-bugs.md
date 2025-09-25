@@ -1,17 +1,20 @@
 ---
 date: 2024-01-23 13:12:59 +0000
-excerpt: Silent bugs   Evgenii Nikitinhttps://t.me/crazyfrogspb   В прошлом году мы
-  заключили контракты на поставку наших систем в 18 регионах России. Кто-то...
+excerpt: В посте рассказывается о сложностях деплоя машинного обучения в различных
+  региональных контурах, где из-за особенностей старой видеокарты возникли незаметные
+  баги в нейронной сети. Автор делится опытом диагностики проблемы и рекомендациями
+  по предотвращению подобных ситуаций при работе с инференс-моделями на разных аппаратных
+  платформах.
 layout: post
 source_type: telegraph
 source_url: https://telegra.ph/Silent-bugs-01-23
 tags:
-- жека
 - machinelearning
+- жека
 telegram_url: https://t.me/varim_ml/115
 telegraph_url: https://telegra.ph/Silent-bugs-01-23
 title: Silent bugs
-views: 0
+views: 3668
 ---
 
 # Silent bugs  

@@ -133,6 +133,10 @@ class PostsFilter {
           return new Date(b.date) - new Date(a.date);
         case 'date-asc':
           return new Date(a.date) - new Date(b.date);
+        case 'views-desc':
+          return (b.views || 0) - (a.views || 0);
+        case 'views-asc':
+          return (a.views || 0) - (b.views || 0);
         default:
           return 0;
       }
@@ -166,7 +170,7 @@ class PostsFilter {
 
   createPostCard(post) {
     const date = new Date(post.date).toLocaleDateString('ru-RU');
-    const excerpt = post.excerpt ? this.truncateText(post.excerpt, 150) : '';
+    const excerpt = post.excerpt ? this.truncateText(post.excerpt, 350) : '';
 
     const tagsHtml = post.tags && post.tags.length > 0
       ? `<div class="post-tags">
@@ -174,6 +178,10 @@ class PostsFilter {
         `<a href="/tags/${tag}/" class="post-tag">#${tag}</a>`
       ).join('')}
          </div>`
+      : '';
+
+    const viewsHtml = post.views && post.views > 0
+      ? `<span class="post-views">👁 ${post.views.toLocaleString()} просмотров</span>`
       : '';
 
     const linksHtml = this.createLinksHtml(post);
@@ -186,6 +194,7 @@ class PostsFilter {
 
         <div class="post-meta">
           <time datetime="${post.date}">${date}</time>
+          ${viewsHtml}
         </div>
         
         ${excerpt ? `<div class="post-excerpt">${this.escapeHtml(excerpt)}</div>` : ''}
