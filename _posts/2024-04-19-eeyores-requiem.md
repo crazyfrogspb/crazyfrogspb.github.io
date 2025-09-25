@@ -3,6 +3,8 @@ date: 2024-04-19 16:44:03 +0000
 excerpt: Eeyore’s Requiem   Evgenii Nikitinhttps://t.me/crazyfrogspb   !/assets/images/099857ed.png  Состав
   Коктейль является вариацией на классический...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/Eeyores-Requiem-04-19
 tags:
 - cocktails
 - жека

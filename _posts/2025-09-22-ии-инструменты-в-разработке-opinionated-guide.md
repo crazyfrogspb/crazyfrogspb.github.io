@@ -3,9 +3,11 @@ date: 2025-09-22 14:11:01 +0000
 excerpt: ИИ-инструменты в разработке - Opinionated Guide   Evgenii Nikitin   Недавно
   мы провели опрос по использованию ИИ-инструментов в техотделе. Оказалось,...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/II-instrumenty-v-razrabotke-09-20
 tags:
-- llm
 - жека
+- llm
 telegram_url: https://t.me/varim_ml/164
 telegraph_url: https://telegra.ph/II-instrumenty-v-razrabotke-09-20
 title: ИИ-инструменты в разработке - Opinionated Guide

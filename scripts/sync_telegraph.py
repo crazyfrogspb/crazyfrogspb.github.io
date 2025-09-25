@@ -111,9 +111,9 @@ class TelegraphSyncer:
                 if not message.text:
                     continue
 
-                # Ищем Telegraph ссылки
-                telegraph_urls = self.extract_telegraph_urls(message)
-                if not telegraph_urls:
+                # Ищем Telegraph и Google Docs ссылки
+                content_urls = self.extract_content_urls(message)
+                if not content_urls:
                     continue
 
                 # Извлекаем хэштеги
@@ -124,7 +124,7 @@ class TelegraphSyncer:
                         "id": message.id,
                         "date": message.date,
                         "text": message.text,
-                        "telegraph_urls": telegraph_urls,
+                        "content_urls": content_urls,
                         "hashtags": hashtags,
                         "views": message.views if hasattr(message, "views") and message.views else 0,
                         "url": f"https://t.me/{self.channel_username}/{message.id}",
@@ -139,8 +139,8 @@ class TelegraphSyncer:
             logger.error(f"Ошибка получения сообщений: {e}")
             return []
 
-    def extract_telegraph_urls(self, message) -> List[str]:
-        """Извлекает Telegraph URL из сообщения"""
+    def extract_content_urls(self, message) -> List[str]:
+        """Извлекает Telegraph и Google Docs URL из сообщения"""
         urls = []
 
         # Проверяем entities
@@ -152,15 +152,23 @@ class TelegraphSyncer:
                     else:
                         url = entity.url
 
-                    if self.is_telegraph_url(url):
+                    if self.is_telegraph_url(url) or self.is_google_docs_url(url):
                         urls.append(url)
 
-        # Дополнительно ищем в тексте
+        # Дополнительно ищем в тексте Telegraph
         text_urls = re.findall(r"https?://(?:telegra\.ph|te\.legra\.ph)/[^\s\)]+", message.text or "")
         for url in text_urls:
             # Очищаем URL от лишних символов в конце
             url = re.sub(r"[^\w\-/]+$", "", url)
             if self.is_telegraph_url(url):
+                urls.append(url)
+
+        # Ищем Google Docs ссылки
+        google_docs_urls = re.findall(r"https?://docs\.google\.com/document/d/[^\s\)]+", message.text or "")
+        for url in google_docs_urls:
+            # Очищаем URL от лишних символов в конце
+            url = re.sub(r"[^\w\-/=?&.]+$", "", url)
+            if self.is_google_docs_url(url):
                 urls.append(url)
 
         return list(set(urls))  # Убираем дубликаты
@@ -170,6 +178,14 @@ class TelegraphSyncer:
         try:
             parsed = urlparse(url)
             return parsed.netloc in ["telegra.ph", "te.legra.ph"]
+        except:
+            return False
+
+    def is_google_docs_url(self, url: str) -> bool:
+        """Проверяет, является ли URL ссылкой на Google Docs"""
+        try:
+            parsed = urlparse(url)
+            return "docs.google.com" in parsed.netloc and "/document/" in url
         except:
             return False
 
@@ -228,6 +244,72 @@ class TelegraphSyncer:
 
         return None
 
+    async def download_google_docs_content(self, url: str, max_retries: int = 3) -> Optional[Dict]:
+        """Скачивает контент Google Docs"""
+        try:
+            # Преобразуем URL в экспортный формат
+            if "/edit" in url:
+                doc_id_match = re.search(r"/document/d/([a-zA-Z0-9-_]+)", url)
+                if doc_id_match:
+                    doc_id = doc_id_match.group(1)
+                    export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=html"
+                else:
+                    logger.warning(f"Не удалось извлечь ID документа из {url}")
+                    return None
+            else:
+                export_url = url
+
+            for attempt in range(max_retries):
+                try:
+                    timeout = aiohttp.ClientTimeout(total=30)
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                    }
+
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.get(export_url, headers=headers) as response:
+                            if response.status != 200:
+                                logger.warning(f"Ошибка загрузки Google Docs {export_url}: {response.status}")
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(2**attempt)
+                                    continue
+                                return None
+
+                            html = await response.text()
+                            soup = BeautifulSoup(html, "html.parser")
+
+                            # Извлекаем заголовок
+                            title_elem = soup.find("title")
+                            title = title_elem.get_text().strip() if title_elem else "Google Docs"
+
+                            # Убираем " - Google Docs" из заголовка
+                            title = re.sub(r"\s*-\s*Google\s+Docs\s*$", "", title)
+
+                            # Извлекаем основной контент
+                            content_div = soup.find("div", {"id": "contents"}) or soup.find("body")
+                            if not content_div:
+                                logger.warning(f"Не найден контент документа в {url}")
+                                return None
+
+                            # Обрабатываем изображения
+                            await self.process_images(content_div, session)
+
+                            # Конвертируем в Markdown
+                            content = self.h2t.handle(str(content_div))
+
+                            return {"title": title, "content": content, "views": 0, "url": url}
+
+                except Exception as e:
+                    logger.error(f"Ошибка загрузки Google Docs {url} (попытка {attempt + 1}/{max_retries}): {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2**attempt)
+                        continue
+
+        except Exception as e:
+            logger.error(f"Ошибка обработки Google Docs URL {url}: {e}")
+
+        return None
+
     async def process_images(self, article, session):
         """Обрабатывает изображения в статье"""
         images = article.find_all("img")
@@ -244,24 +326,110 @@ class TelegraphSyncer:
                 src = "https://telegra.ph" + src
 
             try:
-                # Скачиваем изображение
-                async with session.get(src) as img_response:
-                    if img_response.status == 200:
-                        # Генерируем имя файла
-                        img_hash = hashlib.md5(src.encode()).hexdigest()[:8]
-                        img_ext = src.split(".")[-1].split("?")[0] or "jpg"
-                        img_filename = f"{img_hash}.{img_ext}"
-                        img_path = self.images_dir / img_filename
+                # Специальная обработка для Google Drive/Googleusercontent
+                if "googleusercontent.com" in src or "drive.google.com" in src:
+                    src = await self.process_google_image(src, session)
+                    if not src:
+                        logger.warning(f"Не удалось обработать Google-изображение")
+                        continue
 
-                        # Сохраняем изображение
-                        async with aiofiles.open(img_path, "wb") as f:
-                            await f.write(await img_response.read())
+                # Скачиваем изображение с правильными заголовками
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "DNT": "1",
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1",
+                }
 
-                        # Обновляем src в HTML
-                        img["src"] = f"/assets/images/{img_filename}"
+                # Повторные попытки для Google-изображений
+                max_retries = 3 if ("googleusercontent.com" in src or "drive.google.com" in src) else 1
+
+                success = False
+                for attempt in range(max_retries):
+                    try:
+                        async with session.get(src, headers=headers) as img_response:
+                            if img_response.status == 200:
+                                # Генерируем имя файла
+                                img_hash = hashlib.md5(src.encode()).hexdigest()[:8]
+
+                                # Определяем расширение из Content-Type или URL
+                                content_type = img_response.headers.get("content-type", "")
+                                if "image/jpeg" in content_type or "image/jpg" in content_type:
+                                    img_ext = "jpg"
+                                elif "image/png" in content_type:
+                                    img_ext = "png"
+                                elif "image/gif" in content_type:
+                                    img_ext = "gif"
+                                elif "image/webp" in content_type:
+                                    img_ext = "webp"
+                                elif "image/svg" in content_type:
+                                    img_ext = "svg"
+                                else:
+                                    # Пытаемся извлечь из URL
+                                    img_ext = src.split(".")[-1].split("?")[0].lower()
+                                    if img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
+                                        img_ext = "jpg"  # По умолчанию
+
+                                img_filename = f"{img_hash}.{img_ext}"
+                                img_path = self.images_dir / img_filename
+
+                                # Сохраняем изображение
+                                async with aiofiles.open(img_path, "wb") as f:
+                                    await f.write(await img_response.read())
+
+                                # Обновляем src в HTML
+                                img["src"] = f"/assets/images/{img_filename}"
+                                logger.info(f"Сохранено изображение: {img_filename}")
+                                success = True
+                                break
+                            else:
+                                logger.warning(f"Ошибка загрузки изображения {src}: HTTP {img_response.status}")
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(2**attempt)
+
+                    except Exception as retry_e:
+                        logger.warning(f"Попытка {attempt + 1}/{max_retries} загрузки {src}: {retry_e}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2**attempt)
+
+                if not success:
+                    logger.error(f"Не удалось загрузить изображение после {max_retries} попыток: {src}")
 
             except Exception as e:
                 logger.warning(f"Ошибка обработки изображения {src}: {e}")
+
+    async def process_google_image(self, src: str, session) -> Optional[str]:
+        """Обрабатывает изображения из Google Drive/Googleusercontent"""
+        try:
+            # Для Google Drive ссылок пытаемся получить прямую ссылку
+            if "drive.google.com" in src:
+                # Извлекаем file ID из ссылки
+                import re
+
+                file_id_match = re.search(r"/file/d/([a-zA-Z0-9-_]+)", src)
+                if file_id_match:
+                    file_id = file_id_match.group(1)
+                    # Формируем прямую ссылку для скачивания
+                    direct_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                    return direct_url
+
+            # Для googleusercontent.com просто возвращаем исходный URL
+            # но с дополнительными параметрами для обхода ограничений
+            if "googleusercontent.com" in src:
+                # Добавляем параметры для обхода ограничений
+                if "?" in src:
+                    return src + "&sz=w2000"  # Запрашиваем большой размер
+                else:
+                    return src + "?sz=w2000"
+
+            return src
+
+        except Exception as e:
+            logger.warning(f"Ошибка обработки Google-изображения {src}: {e}")
+            return src
 
     def extract_views(self, soup) -> int:
         """Извлекает количество просмотров"""
@@ -296,10 +464,10 @@ class TelegraphSyncer:
 
         return slug or "post"
 
-    async def create_jekyll_post(self, telegraph_data: Dict, message_data: Dict):
+    async def create_jekyll_post(self, content_data: Dict, message_data: Dict):
         """Создает Jekyll пост"""
         date = message_data["date"]
-        title = telegraph_data["title"]
+        title = content_data["title"]
         slug = self.create_post_slug(title, date)
 
         # Имя файла поста
@@ -311,21 +479,35 @@ class TelegraphSyncer:
             logger.info(f"Пост уже существует: {filename}")
             return
 
+        # Определяем тип источника
+        source_url = content_data["url"]
+        if self.is_telegraph_url(source_url):
+            source_type = "telegraph"
+        elif self.is_google_docs_url(source_url):
+            source_type = "google_docs"
+        else:
+            source_type = "unknown"
+
         # Front matter
         front_matter = {
             "layout": "post",
             "title": title,
             "date": date.strftime("%Y-%m-%d %H:%M:%S %z"),
             "tags": message_data["hashtags"],
-            "views": telegraph_data["views"],
-            "telegraph_url": telegraph_data["url"],
+            "views": content_data["views"],
+            "source_type": source_type,
+            "source_url": source_url,
             "telegram_url": message_data["url"],
-            "excerpt": self.create_excerpt(telegraph_data["content"]),
+            "excerpt": self.create_excerpt(content_data["content"]),
         }
+
+        # Добавляем специфичные поля для Telegraph
+        if source_type == "telegraph":
+            front_matter["telegraph_url"] = source_url
 
         # Создаем содержимое поста
         content = f"---\n{yaml.dump(front_matter, allow_unicode=True, default_flow_style=False)}---\n\n"
-        content += telegraph_data["content"]
+        content += content_data["content"]
 
         # Сохраняем пост
         async with aiofiles.open(post_path, "w", encoding="utf-8") as f:
@@ -418,25 +600,32 @@ title: "Посты с тегом #{tag}"
         processed_count = 0
 
         for message in messages:
-            for telegraph_url in message["telegraph_urls"]:
-                if telegraph_url in self.processed_urls:
+            for content_url in message["content_urls"]:
+                if content_url in self.processed_urls:
                     continue
 
-                logger.info(f"Обрабатываем: {telegraph_url}")
+                logger.info(f"Обрабатываем: {content_url}")
 
-                # Скачиваем контент
-                telegraph_data = await self.download_telegraph_content(telegraph_url)
-                if not telegraph_data:
+                # Скачиваем контент в зависимости от типа URL
+                if self.is_telegraph_url(content_url):
+                    content_data = await self.download_telegraph_content(content_url)
+                elif self.is_google_docs_url(content_url):
+                    content_data = await self.download_google_docs_content(content_url)
+                else:
+                    logger.warning(f"Неподдерживаемый тип URL: {content_url}")
+                    continue
+
+                if not content_data:
                     continue
 
                 # Создаем пост
-                await self.create_jekyll_post(telegraph_data, message)
+                await self.create_jekyll_post(content_data, message)
 
                 # Добавляем теги
                 all_tags.update(message["hashtags"])
 
                 # Отмечаем как обработанный
-                self.processed_urls.add(telegraph_url)
+                self.processed_urls.add(content_url)
                 processed_count += 1
 
                 # Небольшая пауза между запросами

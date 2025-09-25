@@ -3,9 +3,11 @@ date: 2024-01-23 13:12:59 +0000
 excerpt: Silent bugs   Evgenii Nikitinhttps://t.me/crazyfrogspb   В прошлом году мы
   заключили контракты на поставку наших систем в 18 регионах России. Кто-то...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/Silent-bugs-01-23
 tags:
-- machinelearning
 - жека
+- machinelearning
 telegram_url: https://t.me/varim_ml/115
 telegraph_url: https://telegra.ph/Silent-bugs-01-23
 title: Silent bugs

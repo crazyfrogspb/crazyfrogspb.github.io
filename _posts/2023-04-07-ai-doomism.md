@@ -3,6 +3,8 @@ date: 2023-04-07 12:37:30 +0000
 excerpt: AI Doomism   Evgenii Nikitinhttps://t.me/crazyfrogspb   Как вы, наверное,
   заметили, формат канала не предполагает высказывания своего невероятно...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/AI-Doomism-04-04
 tags:
 - жека
 telegram_url: https://t.me/varim_ml/86

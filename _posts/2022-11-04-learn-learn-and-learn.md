@@ -3,10 +3,12 @@ date: 2022-11-04 17:09:06 +0000
 excerpt: Learn, Learn and Learn   Жека Никитин   Иногда я пишу посты, в которых нет
   сильной ML-специфики - например, про менеджмент или свой опыт. Немудрено,...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/Learn-Learn-and-Learn-11-03
 tags:
-- life
-- machinelearning
 - жека
+- machinelearning
+- life
 telegram_url: https://t.me/varim_ml/71
 telegraph_url: https://telegra.ph/Learn-Learn-and-Learn-11-03
 title: Learn, Learn and Learn

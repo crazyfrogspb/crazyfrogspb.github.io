@@ -3,10 +3,12 @@ date: 2025-03-31 16:25:03 +0000
 excerpt: AI Engineering - обзор книги   Evgenii Nikitinhttps://t.me/crazyfrogspb   Сколько
   копий сломано вокруг определения термина AI... В этой книге Чип...
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/AI-Engineering---obzor-knigi-03-31
 tags:
 - books
-- llm
 - жека
+- llm
 telegram_url: https://t.me/varim_ml/148
 telegraph_url: https://telegra.ph/AI-Engineering---obzor-knigi-03-31
 title: AI Engineering - обзор книги

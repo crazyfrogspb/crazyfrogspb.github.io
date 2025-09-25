@@ -3,9 +3,11 @@ date: 2022-10-12 15:59:56 +0000
 excerpt: 'Про metric learning   Миша   В последнее время я что-то совсем мало делал
   для канала: переезд в другую страну дело не самое лёгкое. Но теперь опять...'
 layout: post
+source_type: telegraph
+source_url: https://telegra.ph/Pro-metric-learning-10-07
 tags:
-- обзор
 - cv
+- обзор
 - миша
 telegram_url: https://t.me/varim_ml/67
 telegraph_url: https://telegra.ph/Pro-metric-learning-10-07
