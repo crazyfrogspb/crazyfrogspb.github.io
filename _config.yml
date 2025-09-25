@@ -38,6 +38,7 @@ exclude:
   - vendor/gems/
   - vendor/ruby/
   - scripts/
+  - tags/
 
 # Collections
 collections:
@@ -65,6 +66,10 @@ defaults:
 # Custom settings
 show_excerpts: true
 date_format: "%d.%m.%Y"
+
+# Header navigation - только нужные страницы
+header_pages:
+  - about.md
 
 # Minima theme settings
 minima:

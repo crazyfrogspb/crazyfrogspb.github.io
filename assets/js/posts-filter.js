@@ -4,7 +4,7 @@ class PostsFilter {
     this.allTags = new Set();
     this.selectedTags = new Set();
     this.currentSort = 'date-desc';
-    
+
     this.init();
   }
 
@@ -28,7 +28,7 @@ class PostsFilter {
       }
       const data = await response.json();
       this.posts = data.posts || [];
-      
+
       // Собираем все теги
       this.posts.forEach(post => {
         if (post.tags) {
@@ -68,24 +68,24 @@ class PostsFilter {
     if (!tagsContainer) return;
 
     tagsContainer.innerHTML = '';
-    
+
     if (this.allTags.size === 0) {
       tagsContainer.innerHTML = '<p class="no-tags">Теги пока не найдены</p>';
       return;
     }
 
     const sortedTags = Array.from(this.allTags).sort();
-    
+
     sortedTags.forEach(tag => {
       const tagElement = document.createElement('span');
       tagElement.className = 'tag-filter';
       tagElement.textContent = `#${tag}`;
       tagElement.dataset.tag = tag;
-      
+
       tagElement.addEventListener('click', () => {
         this.toggleTag(tag);
       });
-      
+
       tagsContainer.appendChild(tagElement);
     });
   }
@@ -96,7 +96,7 @@ class PostsFilter {
     } else {
       this.selectedTags.add(tag);
     }
-    
+
     this.updateTagsUI();
     this.renderPosts();
   }
@@ -115,17 +115,17 @@ class PostsFilter {
 
   getFilteredPosts() {
     let filtered = [...this.posts];
-    
+
     // Фильтрация по тегам
     if (this.selectedTags.size > 0) {
       filtered = filtered.filter(post => {
         if (!post.tags || post.tags.length === 0) return false;
-        return Array.from(this.selectedTags).every(tag => 
+        return Array.from(this.selectedTags).every(tag =>
           post.tags.includes(tag)
         );
       });
     }
-    
+
     // Сортировка
     filtered.sort((a, b) => {
       switch (this.currentSort) {
@@ -133,26 +133,22 @@ class PostsFilter {
           return new Date(b.date) - new Date(a.date);
         case 'date-asc':
           return new Date(a.date) - new Date(b.date);
-        case 'views-desc':
-          return (b.views || 0) - (a.views || 0);
-        case 'views-asc':
-          return (a.views || 0) - (b.views || 0);
         default:
           return 0;
       }
     });
-    
+
     return filtered;
   }
 
   renderPosts() {
     const container = document.getElementById('posts-container');
     const noPostsMessage = document.getElementById('no-posts');
-    
+
     if (!container) return;
 
     const filteredPosts = this.getFilteredPosts();
-    
+
     if (filteredPosts.length === 0) {
       container.innerHTML = '';
       if (noPostsMessage) {
@@ -160,41 +156,36 @@ class PostsFilter {
       }
       return;
     }
-    
+
     if (noPostsMessage) {
       noPostsMessage.style.display = 'none';
     }
-    
+
     container.innerHTML = filteredPosts.map(post => this.createPostCard(post)).join('');
   }
 
   createPostCard(post) {
     const date = new Date(post.date).toLocaleDateString('ru-RU');
     const excerpt = post.excerpt ? this.truncateText(post.excerpt, 150) : '';
-    
-    const tagsHtml = post.tags && post.tags.length > 0 
+
+    const tagsHtml = post.tags && post.tags.length > 0
       ? `<div class="post-tags">
-          ${post.tags.map(tag => 
-            `<a href="/tags/${tag}/" class="post-tag">#${tag}</a>`
-          ).join('')}
+          ${post.tags.map(tag =>
+        `<a href="/tags/${tag}/" class="post-tag">#${tag}</a>`
+      ).join('')}
          </div>`
       : '';
-    
-    const viewsHtml = post.views 
-      ? `<span class="post-views">👁 ${post.views} просмотров</span>`
-      : '';
-    
+
     const linksHtml = this.createLinksHtml(post);
-    
+
     return `
       <article class="post-card">
         <h2 class="post-title">
           <a href="${post.url}">${this.escapeHtml(post.title)}</a>
         </h2>
-        
+
         <div class="post-meta">
           <time datetime="${post.date}">${date}</time>
-          ${viewsHtml}
         </div>
         
         ${excerpt ? `<div class="post-excerpt">${this.escapeHtml(excerpt)}</div>` : ''}
@@ -208,16 +199,16 @@ class PostsFilter {
 
   createLinksHtml(post) {
     const links = [];
-    
+
     if (post.telegraph_url) {
       links.push(`<a href="${post.telegraph_url}" target="_blank" rel="noopener">📖 Telegraph</a>`);
     }
-    
+
     if (post.telegram_url) {
       links.push(`<a href="${post.telegram_url}" target="_blank" rel="noopener">💬 Telegram</a>`);
     }
-    
-    return links.length > 0 
+
+    return links.length > 0
       ? `<div class="post-links">${links.join('')}</div>`
       : '';
   }
