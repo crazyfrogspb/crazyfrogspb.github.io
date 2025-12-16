@@ -246,7 +246,7 @@ title: RAG-чат
 
         <div class="chat-container" id="chatContainer">
             <div class="welcome-message">
-                Привет! Задавайте вопросы об ML, ИИ-инструмнтах, карьере, авторе канала.
+                Привет! Задавайте вопросы об ML, ИИ-инструментах, карьере, авторе канала.
             </div>
         </div>
 
@@ -379,7 +379,9 @@ title: RAG-чат
 
                 } catch (error) {
                     console.error('Ошибка обработки сообщения:', error);
-                    this.addMessage('Извините, произошла ошибка при обработке запроса. Попробуйте еще раз.', 'assistant');
+                    // Показываем реальное сообщение об ошибке от сервера
+                    const errorMessage = error.message || 'Извините, произошла ошибка при обработке запроса. Попробуйте еще раз.';
+                    this.addMessage(errorMessage, 'assistant');
                 } finally {
                     this.hideTyping();
                     this.enableInput();

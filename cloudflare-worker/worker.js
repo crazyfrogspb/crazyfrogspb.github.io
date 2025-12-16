@@ -221,8 +221,18 @@ async function checkRateLimit(request) {
 /**
  * Валидация запроса через LLM
  */
-async function validateQuery(query) {
+async function validateQuery(query, history = []) {
   try {
+    // Формируем контекст для валидации (если есть история)
+    let userContent = `Запрос пользователя: "${query}"`;
+
+    if (history.length > 0) {
+      const historyText = history.map(msg =>
+        `${msg.role === 'user' ? 'Пользователь' : 'Ассистент'}: ${msg.content}`
+      ).join('\n');
+      userContent = `История диалога:\n${historyText}\n\nТекущий запрос: "${query}"\n\nОцени ТЕКУЩИЙ запрос в контексте диалога.`;
+    }
+
     const validationRequest = {
       model: CONFIG.VALIDATION_MODEL,
       messages: [
@@ -232,7 +242,7 @@ async function validateQuery(query) {
         },
         {
           role: 'user',
-          content: `Запрос пользователя: "${query}"`
+          content: userContent
         }
       ],
       max_tokens: 10,
@@ -415,7 +425,7 @@ async function handleRAGRequest(request) {
 async function handleRAGChatRequest(request) {
   try {
     const body = await request.json();
-    const { query, context, model = CONFIG.DEFAULT_MODEL } = body;
+    const { query, context, history = [], model = CONFIG.DEFAULT_MODEL } = body;
 
     // Валидация входных данных
     if (!query || typeof query !== 'string') {
@@ -449,8 +459,8 @@ async function handleRAGChatRequest(request) {
       });
     }
 
-    // Валидация запроса
-    const isValidQuery = await validateQuery(query);
+    // Валидация запроса (с учетом истории чата для уточняющих вопросов)
+    const isValidQuery = await validateQuery(query, history);
     if (!isValidQuery) {
       return new Response(JSON.stringify({
         error: 'Invalid query',
@@ -495,6 +505,21 @@ ${finalContext}
       console.log(`Пробуем модель: ${tryModel}`);
 
       try {
+        // Формируем messages с историей чата
+        const messages = [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          // Добавляем историю предыдущих сообщений (если есть)
+          ...history,
+          // Текущий вопрос пользователя
+          {
+            role: 'user',
+            content: query
+          }
+        ];
+
         const openRouterResponse = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -505,16 +530,7 @@ ${finalContext}
           },
           body: JSON.stringify({
             model: tryModel,
-            messages: [
-              {
-                role: 'system',
-                content: systemPrompt
-              },
-              {
-                role: 'user',
-                content: query
-              }
-            ],
+            messages: messages,
             max_tokens: tryModel.includes('qwen') ? 1500 : 1000,
             temperature: 0.7,
             top_p: 0.9
@@ -523,7 +539,7 @@ ${finalContext}
 
         if (openRouterResponse.ok) {
           const result = await openRouterResponse.json();
-          answer = result.choices?.[0]?.message?.content;
+          answer = result.choices?.[0]?.message?.content?.trim();
           if (answer) {
             usedModel = tryModel;
             console.log(`✅ Успешно с моделью: ${tryModel}`);
