@@ -349,8 +349,18 @@ title: RAG-чат
                     // Генерируем ответ через LLM
                     const response = await this.generateLLMResponse(message, searchResults.chunks);
 
-                    // Добавляем ответ ассистента
-                    this.addMessage(response.answer, 'assistant', searchResults.chunks);
+                    // Извлекаем номера процитированных источников из ответа
+                    const citedNumbers = this.extractCitedSources(response.answer);
+
+                    // Фильтруем sources - показываем только те, которые процитированы в ответе
+                    const citedSources = citedNumbers.length > 0
+                        ? citedNumbers
+                            .map(num => searchResults.chunks[num - 1]) // num - 1 потому что нумерация с 1, а индексы с 0
+                            .filter(chunk => chunk !== undefined) // Убираем undefined если номер вне диапазона
+                        : []; // Если нет цитат - не показываем источники
+
+                    // Добавляем ответ ассистента с отфильтрованными источниками
+                    this.addMessage(response.answer, 'assistant', citedSources);
 
                 } catch (error) {
                     console.error('Ошибка обработки сообщения:', error);
@@ -509,6 +519,30 @@ title: RAG-чат
 
             hideStatus() {
                 this.statusElement.style.display = 'none';
+            }
+
+            /**
+             * Извлекает номера процитированных источников из текста
+             * Находит все ссылки вида [1], [2], [1, 5] и возвращает уникальные номера
+             */
+            extractCitedSources(text) {
+                const citedNumbers = new Set();
+
+                // Ищем все паттерны вида [1], [2, 3], [1, 5, 7] и т.д.
+                const regex = /\[([\d,\s]+)\]/g;
+                let match;
+
+                while ((match = regex.exec(text)) !== null) {
+                    const numbers = match[1];
+                    // Проверяем что это действительно список чисел
+                    if (/^[\d,\s]+$/.test(numbers)) {
+                        // Извлекаем каждое число
+                        const nums = numbers.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                        nums.forEach(num => citedNumbers.add(num));
+                    }
+                }
+
+                return Array.from(citedNumbers).sort((a, b) => a - b);
             }
 
             /**
