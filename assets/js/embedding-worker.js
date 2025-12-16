@@ -6,6 +6,83 @@
 // Загружаем ONNX.js для работы с моделью
 importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js');
 
+// ===== IndexedDB кеширование для ONNX моделей =====
+const MODEL_CACHE_DB = 'onnx-model-cache';
+const MODEL_CACHE_STORE = 'models';
+const MODEL_VERSION = 'v1'; // Увеличивай при обновлении модели
+
+/**
+ * Открывает IndexedDB для кеширования моделей
+ */
+function openModelCache() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(MODEL_CACHE_DB, 1);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(MODEL_CACHE_STORE)) {
+                db.createObjectStore(MODEL_CACHE_STORE);
+            }
+        };
+    });
+}
+
+/**
+ * Получает модель из кеша
+ */
+async function getModelFromCache(modelUrl) {
+    try {
+        const db = await openModelCache();
+        const cacheKey = `${modelUrl}_${MODEL_VERSION}`;
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([MODEL_CACHE_STORE], 'readonly');
+            const store = transaction.objectStore(MODEL_CACHE_STORE);
+            const request = store.get(cacheKey);
+
+            request.onsuccess = () => {
+                if (request.result) {
+                    console.log('✅ Модель загружена из IndexedDB кеша');
+                    resolve(request.result);
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.warn('Ошибка чтения из кеша:', error);
+        return null;
+    }
+}
+
+/**
+ * Сохраняет модель в кеш
+ */
+async function saveModelToCache(modelUrl, arrayBuffer) {
+    try {
+        const db = await openModelCache();
+        const cacheKey = `${modelUrl}_${MODEL_VERSION}`;
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([MODEL_CACHE_STORE], 'readwrite');
+            const store = transaction.objectStore(MODEL_CACHE_STORE);
+            const request = store.put(arrayBuffer, cacheKey);
+
+            request.onsuccess = () => {
+                console.log('✅ Модель сохранена в IndexedDB кеш');
+                resolve();
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.warn('Ошибка сохранения в кеш:', error);
+    }
+}
+
 if (typeof ort !== 'undefined') {
     ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/';
     ort.env.wasm.numThreads = 1;
@@ -105,9 +182,29 @@ class HybridSearchEmbedder {
             keys: Object.keys(this.tokenizer)
         });
 
-        // Загружаем ONNX модель
+        // Загружаем ONNX модель с кешированием
         console.log('Загружаем ONNX модель...');
-        this.session = await ort.InferenceSession.create(this.modelUrl);
+
+        // Проверяем кеш
+        let modelData = await getModelFromCache(this.modelUrl);
+
+        if (!modelData) {
+            // Модели нет в кеше - скачиваем
+            console.log('📥 Скачиваем модель с HuggingFace (123MB, это займет ~1 минуту)...');
+            const response = await fetch(this.modelUrl);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch model: ${response.status}`);
+            }
+
+            modelData = await response.arrayBuffer();
+
+            // Сохраняем в кеш для будущих загрузок
+            await saveModelToCache(this.modelUrl, modelData);
+        }
+
+        // Создаем сессию из ArrayBuffer
+        this.session = await ort.InferenceSession.create(modelData);
 
         this.useTransformers = false;
 
