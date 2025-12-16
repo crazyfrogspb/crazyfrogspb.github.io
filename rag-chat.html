@@ -344,13 +344,20 @@ title: RAG-чат
                 this.disableInput();
 
                 try {
-                    // Выполняем поиск
-                    const searchResults = await this.vectorSearch.search(message, {
+                    // Если есть история - переформулируем запрос для лучшего поиска
+                    let searchQuery = message;
+                    if (this.chatHistory.length > 0) {
+                        searchQuery = await this.rephraseQuery(message, this.chatHistory);
+                        console.log('🔄 Переформулированный запрос для поиска:', searchQuery);
+                    }
+
+                    // Выполняем поиск (по переформулированному запросу если есть история)
+                    const searchResults = await this.vectorSearch.search(searchQuery, {
                         limit: 5,
                         threshold: 0.1
                     });
 
-                    // Генерируем ответ через LLM (с историей чата)
+                    // Генерируем ответ через LLM (с оригинальным запросом и историей)
                     const response = await this.generateLLMResponse(message, searchResults.chunks, this.chatHistory);
 
                     // Извлекаем номера процитированных источников из ответа
@@ -385,6 +392,37 @@ title: RAG-чат
                 } finally {
                     this.hideTyping();
                     this.enableInput();
+                }
+            }
+
+            /**
+             * Переформулирует запрос в standalone вопрос с учетом истории
+             */
+            async rephraseQuery(query, chatHistory) {
+                try {
+                    const response = await fetch(this.cloudflareWorkerUrl.replace('/chat', '/rephrase'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            history: chatHistory
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        console.warn('Ошибка переформулирования, используем оригинальный запрос');
+                        return query;
+                    }
+
+                    return data.rephrased_query || query;
+
+                } catch (error) {
+                    console.warn('Ошибка переформулирования:', error);
+                    return query; // Fallback к оригинальному запросу
                 }
             }
 

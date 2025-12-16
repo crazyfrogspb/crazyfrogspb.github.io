@@ -106,6 +106,9 @@ async function handleRequest(request) {
     if (url.pathname === '/chat') {
       // RAG чат с контекстом
       return await handleRAGChatRequest(request);
+    } else if (url.pathname === '/rephrase') {
+      // Переформулирование запроса для поиска
+      return await handleRephraseRequest(request);
     } else {
       // Обычный RAG запрос (старый API)
       return await handleRAGRequest(request);
@@ -589,6 +592,130 @@ ${finalContext}
     return new Response(JSON.stringify({
       error: 'Processing error',
       message: 'Произошла ошибка при обработке запроса'
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': request.headers.get('Origin')
+      }
+    });
+  }
+}
+
+/**
+ * Переформулирование запроса для улучшения поиска
+ */
+async function handleRephraseRequest(request) {
+  try {
+    const body = await request.json();
+    const { query, history = [] } = body;
+
+    // Валидация
+    if (!query || typeof query !== 'string') {
+      return new Response(JSON.stringify({
+        error: 'Invalid input',
+        message: 'Поле query обязательно'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Если нет истории - возвращаем оригинальный запрос
+    if (history.length === 0) {
+      return new Response(JSON.stringify({
+        rephrased_query: query
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': request.headers.get('Origin'),
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+
+    // Формируем промпт для переформулирования
+    const historyText = history.map(msg =>
+      `${msg.role === 'user' ? 'Пользователь' : 'Ассистент'}: ${msg.content}`
+    ).join('\n');
+
+    const rephrasePrompt = `Ты помощник для переформулирования вопросов.
+
+История диалога:
+${historyText}
+
+Текущий вопрос пользователя: "${query}"
+
+Переформулируй текущий вопрос в самостоятельный (standalone) вопрос, который можно понять БЕЗ контекста истории.
+Замени все местоимения и неявные ссылки на конкретные объекты из истории.
+
+Примеры:
+- "что это за компания?" → "Что за компания Цельс?"
+- "расскажи подробнее" → "Расскажи подробнее про [конкретная тема из истории]"
+- "а какие еще?" → "[Конкретизированный вопрос на основе контекста]"
+
+Отвечай ТОЛЬКО переформулированным вопросом, без пояснений.`;
+
+    // Запрос к LLM
+    const response = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://crazyfrogspb.github.io',
+        'X-Title': 'Varim ML Query Rephrasing'
+      },
+      body: JSON.stringify({
+        model: CONFIG.DEFAULT_MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: rephrasePrompt
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Rephrase API error:', response.status);
+      // Fallback к оригинальному запросу
+      return new Response(JSON.stringify({
+        rephrased_query: query
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': request.headers.get('Origin')
+        }
+      });
+    }
+
+    const result = await response.json();
+    const rephrasedQuery = result.choices?.[0]?.message?.content?.trim() || query;
+
+    return new Response(JSON.stringify({
+      rephrased_query: rephrasedQuery,
+      original_query: query
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': request.headers.get('Origin'),
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+
+  } catch (error) {
+    console.error('Rephrase error:', error);
+
+    return new Response(JSON.stringify({
+      error: 'Processing error',
+      message: 'Ошибка переформулирования запроса'
     }), {
       status: 500,
       headers: {
