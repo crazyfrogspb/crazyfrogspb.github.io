@@ -28,7 +28,7 @@ class HybridSearchEmbedder {
         this.avgDocLength = 0;
 
         // Настройки ONNX модели (модель с HuggingFace CDN, config/vocab локально)
-        this.modelUrl = 'https://huggingface.co/amekhrishvili/rubert-mini-frida-onnx/resolve/main/model.onnx';
+        this.modelUrl = 'https://huggingface.co/crazyfrogspb/rubert-mini-frida-onnx/resolve/main/model.onnx';
         this.tokenizerUrl = 'https://huggingface.co/sergeyzh/rubert-mini-frida/resolve/main/tokenizer.json';
         this.configUrl = '/assets/onnx/config.json';
         this.tokenizer = null;
