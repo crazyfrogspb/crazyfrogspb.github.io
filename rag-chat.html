@@ -353,7 +353,7 @@ title: RAG-чат
 
                     // Выполняем поиск (по переформулированному запросу если есть история)
                     const searchResults = await this.vectorSearch.search(searchQuery, {
-                        limit: 5,
+                        limit: 7,
                         threshold: 0.1
                     });
 

@@ -674,7 +674,10 @@ class HybridSearchEmbedder {
             semNorm: r.semanticNorm.toFixed(4)
         })));
 
-        return sortedScores.slice(0, topK);
+        // Фильтруем title chunks (chunk_index === -2) - они не несут информации
+        const filtered = sortedScores.filter(s => s.document.chunk_index !== -2);
+
+        return filtered.slice(0, topK);
     }
 
     /**

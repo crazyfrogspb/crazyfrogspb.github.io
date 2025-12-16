@@ -270,10 +270,6 @@ class RAGDataPreparer:
         all_chunks = []
 
         for post in posts:
-            # Чанк заголовка
-            title_chunk = self.create_title_chunk(post)
-            all_chunks.append(title_chunk)
-
             # Чанк саммари (если есть)
             if post["excerpt"]:
                 summary_chunk = self.create_summary_chunk(post)
