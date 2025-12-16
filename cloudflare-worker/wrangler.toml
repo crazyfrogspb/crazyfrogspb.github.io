@@ -1,0 +1,28 @@
+name = "varim-ml-rag-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Включаем логирование для отладки
+[observability.logs]
+enabled = true
+
+# KV namespace для rate limiting
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "2781bafe9fee4bde8794d524173a0dce"
+
+# Настройки для production
+[env.production]
+name = "varim-ml-rag-proxy-prod"
+# route = "api.your-domain.com/rag/*"  # Раскомментировать для custom domain
+
+# Настройки для development
+[env.development]
+name = "varim-ml-rag-proxy-dev"
+
+# Лимиты ресурсов (недоступно на Free плане)
+# [limits]
+# cpu_ms = 10000  # 10 секунд CPU time
+
+# Переменные окружения
+# OPENROUTER_API_KEY устанавливается как секрет через wrangler secret put

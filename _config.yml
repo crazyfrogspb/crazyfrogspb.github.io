@@ -9,7 +9,7 @@
 # 'bundle exec jekyll serve'. If you change this file, please restart the server.
 
 # Site settings
-title: "Варим ML"
+title: "Страничка Жеки Никитина"
 description: "Посты из телеграм-канала @varim_ml"
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "https://crazyfrogspb.github.io" # the base hostname & protocol for your site
@@ -70,6 +70,7 @@ date_format: "%d.%m.%Y"
 # Header navigation - только нужные страницы
 header_pages:
   - about.md
+  - rag-chat.html
 
 # Minima theme settings
 minima:

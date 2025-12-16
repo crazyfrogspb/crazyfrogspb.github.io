@@ -1,0 +1,366 @@
+/**
+ * Векторный поиск для RAG системы
+ * Работает с эмбеддингами в браузере
+ */
+
+class VectorSearch {
+    constructor() {
+        this.chunks = [];
+        this.embeddings = [];
+        this.metadata = {};
+        this.isLoaded = false;
+        this.worker = null;
+        this.workerReady = false;
+        this.messageId = 0;
+        this.pendingMessages = new Map();
+    }
+
+    /**
+     * Инициализирует Web Worker для генерации эмбеддингов
+     */
+    async initializeWorker() {
+        if (this.worker) {
+            return true;
+        }
+
+        try {
+            this.worker = new Worker('/assets/js/embedding-worker.js');
+
+            this.worker.onmessage = (e) => {
+                const { type, id, success, error } = e.data;
+
+                if (this.pendingMessages.has(id)) {
+                    const { resolve, reject } = this.pendingMessages.get(id);
+                    this.pendingMessages.delete(id);
+
+                    if (success) {
+                        resolve(e.data);
+                    } else {
+                        reject(new Error(error));
+                    }
+                }
+            };
+
+            this.worker.onerror = (error) => {
+                console.error('Worker error:', error);
+            };
+
+            // Инициализируем worker с корпусом для BM25
+            const corpusData = this.chunks.map(chunk => ({
+                content: chunk.content,
+                type: chunk.type
+            }));
+
+            const response = await this.sendWorkerMessage('initialize', { corpusData });
+            this.workerReady = response.success;
+
+            console.log('✅ Web Worker инициализирован');
+            return true;
+
+        } catch (error) {
+            console.warn('⚠️ Web Worker недоступен, используем простую векторизацию:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Отправляет сообщение в Web Worker
+     */
+    sendWorkerMessage(type, data) {
+        return new Promise((resolve, reject) => {
+            const id = ++this.messageId;
+            this.pendingMessages.set(id, { resolve, reject });
+
+            this.worker.postMessage({ type, data, id });
+
+            // Увеличенный таймаут для загрузки Transformers.js
+            const timeoutMs = type === 'initialize' ? 120000 : 30000; // 2 минуты для инициализации
+            setTimeout(() => {
+                if (this.pendingMessages.has(id)) {
+                    this.pendingMessages.delete(id);
+                    reject(new Error(`Worker timeout after ${timeoutMs / 1000}s`));
+                }
+            }, timeoutMs);
+        });
+    }
+
+    /**
+     * Загружает RAG данные
+     */
+    async loadData() {
+        try {
+            console.log('Загружаем RAG данные...');
+            const response = await fetch('/assets/rag/rag_data_compact.json');
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            this.chunks = data.chunks;
+            this.embeddings = data.embeddings;
+            this.metadata = data.metadata;
+            this.isLoaded = true;
+
+            console.log(`✅ Загружено ${this.chunks.length} чанков, размерность: ${this.metadata.embedding_dimension}`);
+            return true;
+
+        } catch (error) {
+            console.error('Ошибка загрузки RAG данных:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Вычисляет косинусное сходство между двумя векторами
+     */
+    cosineSimilarity(vecA, vecB) {
+        if (vecA.length !== vecB.length) {
+            throw new Error('Векторы должны иметь одинаковую размерность');
+        }
+
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+
+        for (let i = 0; i < vecA.length; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+
+        normA = Math.sqrt(normA);
+        normB = Math.sqrt(normB);
+
+        if (normA === 0 || normB === 0) {
+            return 0;
+        }
+
+        return dotProduct / (normA * normB);
+    }
+
+    /**
+     * Генерирует эмбеддинг для текста (через Worker или простой метод)
+     */
+    async generateEmbedding(text) {
+        // Пробуем использовать Web Worker
+        if (this.workerReady) {
+            try {
+                const response = await this.sendWorkerMessage('encode', { text });
+                return response.embedding;
+            } catch (error) {
+                console.warn('Worker недоступен, используем простой метод:', error);
+            }
+        }
+
+        // Fallback к простому методу
+        return this.generateSimpleEmbedding(text);
+    }
+
+    /**
+     * Простая генерация эмбеддингов в браузере (TF-IDF подобный подход)
+     * Для полноценной работы нужно использовать модель типа sentence-transformers в браузере
+     */
+    generateSimpleEmbedding(text) {
+        // Простая векторизация на основе частоты слов
+        const words = text.toLowerCase()
+            .replace(/[^\w\sа-яё]/gi, ' ')
+            .split(/\s+/)
+            .filter(word => word.length > 2);
+
+        // Используем размерность из метаданных (312 для rubert-mini-frida)
+        const dimension = this.metadata.embedding_dimension || 312;
+        const embedding = new Array(dimension).fill(0);
+
+        // Простое хеширование слов в индексы
+        words.forEach(word => {
+            const hash = this.simpleHash(word) % dimension;
+            embedding[hash] += 1;
+        });
+
+        // Нормализация
+        const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+        if (norm > 0) {
+            for (let i = 0; i < embedding.length; i++) {
+                embedding[i] /= norm;
+            }
+        }
+
+        return embedding;
+    }
+
+    /**
+     * Простая хеш-функция для строк
+     */
+    simpleHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Преобразуем в 32-битное число
+        }
+        return Math.abs(hash);
+    }
+
+    /**
+     * Выполняет hybrid поиск по запросу (BM25 + семантический)
+     */
+    async search(query, options = {}) {
+        if (!this.isLoaded) {
+            throw new Error('RAG данные не загружены. Вызовите loadData() сначала.');
+        }
+
+        if (!this.workerReady) {
+            await this.initializeWorker();
+        }
+
+        const {
+            limit = 5,
+            threshold = 0.1,
+            includeContent = true,
+            includeSummary = true
+        } = options;
+
+        console.log(`🔍 Hybrid поиск: "${query}"`);
+
+        // Подготавливаем документы для поиска
+        const documents = this.chunks
+            .map((chunk, index) => ({
+                ...chunk,
+                embedding: this.embeddings[index],
+                index
+            }))
+            .filter(doc => {
+                // Фильтруем по типу чанков
+                if (!includeContent && doc.type === 'content') return false;
+                if (!includeSummary && doc.type === 'summary') return false;
+                return true;
+            });
+
+        // Выполняем hybrid search через worker
+        const response = await this.sendWorkerMessage('hybrid_search', {
+            query,
+            documents,
+            topK: limit * 2 // Берем больше для фильтрации
+        });
+
+        const results = response.results
+            .filter(result => result.score >= threshold)
+            .slice(0, limit);
+
+        console.log(`📊 Найдено ${results.length} релевантных чанков (hybrid search)`);
+
+        // Возвращаем результаты в нужном формате
+        return {
+            chunks: results.map(result => ({
+                ...result.document,
+                score: result.score,
+                bm25Score: result.bm25Score,
+                semanticScore: result.semanticScore
+            })),
+            debug: {
+                query: query,
+                totalChunks: this.chunks.length,
+                foundChunks: results.length,
+                threshold: threshold,
+                embeddingDimension: this.metadata.embedding_dimension,
+                searchType: 'hybrid'
+            }
+        };
+    }
+
+    /**
+     * Поиск с группировкой по постам
+     */
+    async searchByPosts(query, options = {}) {
+        const results = await this.search(query, { ...options, limit: 20 });
+
+        // Группируем по постам
+        const postGroups = {};
+
+        results.forEach(result => {
+            const postId = result.chunk.post_id;
+            if (!postGroups[postId]) {
+                postGroups[postId] = {
+                    post_id: postId,
+                    post_title: result.chunk.post_title,
+                    post_url: result.chunk.post_url,
+                    chunks: [],
+                    max_similarity: 0
+                };
+            }
+
+            postGroups[postId].chunks.push(result);
+            postGroups[postId].max_similarity = Math.max(
+                postGroups[postId].max_similarity,
+                result.similarity
+            );
+        });
+
+        // Сортируем посты по максимальному сходству
+        const sortedPosts = Object.values(postGroups)
+            .sort((a, b) => b.max_similarity - a.max_similarity)
+            .slice(0, options.limit || 5);
+
+        return sortedPosts;
+    }
+
+    /**
+     * Получает контекст для RAG (объединяет релевантные чанки)
+     */
+    async getContext(query, options = {}) {
+        const results = await this.search(query, options);
+
+        const context = results.map((result, index) => {
+            return {
+                source: `#${index + 1}`,
+                title: result.chunk.post_title,
+                url: result.chunk.post_url,
+                content: result.chunk.content,
+                similarity: result.similarity.toFixed(3)
+            };
+        });
+
+        return context;
+    }
+
+    /**
+     * Форматирует контекст для отправки в LLM
+     */
+    formatContextForLLM(context) {
+        let formatted = "Контекст для ответа:\n\n";
+
+        context.forEach((item, index) => {
+            formatted += `#${index + 1} [${item.title}](${item.url})\n`;
+            formatted += `${item.content}\n\n`;
+        });
+
+        return formatted;
+    }
+
+    /**
+     * Получает статистику по загруженным данным
+     */
+    getStats() {
+        if (!this.isLoaded) {
+            return null;
+        }
+
+        const contentChunks = this.chunks.filter(c => c.type === 'content').length;
+        const summaryChunks = this.chunks.filter(c => c.type === 'summary').length;
+        const uniquePosts = new Set(this.chunks.map(c => c.post_id)).size;
+
+        return {
+            total_chunks: this.chunks.length,
+            content_chunks: contentChunks,
+            summary_chunks: summaryChunks,
+            unique_posts: uniquePosts,
+            embedding_dimension: this.metadata.embedding_dimension,
+            embedding_model: this.metadata.embedding_model
+        };
+    }
+}
+
+// Экспортируем для использования
+window.VectorSearch = VectorSearch;

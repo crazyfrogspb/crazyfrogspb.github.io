@@ -1,0 +1,557 @@
+---
+layout: default
+title: RAG-чат
+---
+
+<style>
+        /* Плавная прокрутка к якорям */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .chat-container {
+            height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #667eea;
+        }
+
+        .message.assistant .message-avatar {
+            background: #764ba2;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-content {
+            background: #f1f3f4;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .sources {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        .sources h4 {
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .source-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        /* Подсветка источника при переходе по якорной ссылке */
+        .source-item:target {
+            background: #f0f4ff;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .source-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .source-title a {
+            color: #667eea;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .source-title a:hover {
+            color: #5a6fd8;
+            text-decoration: underline;
+        }
+
+        .source-content {
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .input-box {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-field {
+            flex: 1;
+            min-height: 50px;
+            max-height: 120px;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            font-size: 16px;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #5a6fd8;
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+            background: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+
+        .status.loading {
+            color: #667eea;
+        }
+
+        .status.error {
+            color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 15px 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .typing-indicator.show {
+            display: block;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>RAG-чат</h1>
+            <p>Здесь можно задать вопросы по постам из канала Варим-МЛ</p>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="welcome-message">
+                Привет! Задавайте вопросы об ML, ИИ-инструмнтах, карьере, авторе канала.
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            Ищу информацию и готовлю ответ...
+        </div>
+
+        <div class="input-container">
+            <div class="input-box">
+                <textarea id="messageInput" class="input-field" placeholder="Загрузка модели..."
+                    rows="1" disabled></textarea>
+                <button id="sendButton" class="send-button" disabled>
+                    ➤
+                </button>
+            </div>
+        </div>
+
+        <div class="status" id="status">
+            Инициализация RAG-системы...
+        </div>
+    </div>
+
+    <script src="/assets/js/vector-search.js"></script>
+    <script>
+        class RAGChat {
+            constructor() {
+                this.vectorSearch = new VectorSearch();
+                this.chatContainer = document.getElementById('chatContainer');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.statusElement = document.getElementById('status');
+                this.typingIndicator = document.getElementById('typingIndicator');
+
+                this.cloudflareWorkerUrl = 'http://localhost:3001/chat';
+
+                this.initializeEventListeners();
+                this.initialize();
+            }
+
+            initializeEventListeners() {
+                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                // Auto-resize textarea
+                this.messageInput.addEventListener('input', () => {
+                    this.messageInput.style.height = 'auto';
+                    this.messageInput.style.height = this.messageInput.scrollHeight + 'px';
+                });
+            }
+
+            async initialize() {
+                try {
+                    // Блокируем ввод до завершения инициализации
+                    this.disableInput();
+
+                    this.showStatus('Загружаем RAG-данные...', 'loading');
+                    await this.vectorSearch.loadData();
+
+                    this.showStatus('Инициализируем эмбеддинг-модель...', 'loading');
+                    await this.vectorSearch.initializeWorker();
+
+                    this.showStatus('RAG-система готова к работе!');
+                    setTimeout(() => this.hideStatus(), 2000);
+
+                    // Разблокируем ввод после успешной инициализации
+                    this.enableInput();
+
+                } catch (error) {
+                    console.error('Ошибка инициализации:', error);
+                    this.showStatus('Ошибка инициализации RAG-системы', 'error');
+                    // Ввод остается заблокированным при ошибке
+                }
+            }
+
+            async sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message) return;
+
+                // Добавляем сообщение пользователя
+                this.addMessage(message, 'user');
+                this.messageInput.value = '';
+                this.messageInput.style.height = 'auto';
+
+                // Показываем индикатор печати
+                this.showTyping();
+                this.disableInput();
+
+                try {
+                    // Выполняем поиск
+                    const searchResults = await this.vectorSearch.search(message, {
+                        limit: 5,
+                        threshold: 0.1
+                    });
+
+                    // Генерируем ответ через LLM
+                    const response = await this.generateLLMResponse(message, searchResults.chunks);
+
+                    // Добавляем ответ ассистента
+                    this.addMessage(response.answer, 'assistant', searchResults.chunks);
+
+                } catch (error) {
+                    console.error('Ошибка обработки сообщения:', error);
+                    this.addMessage('Извините, произошла ошибка при обработке запроса. Попробуйте еще раз.', 'assistant');
+                } finally {
+                    this.hideTyping();
+                    this.enableInput();
+                }
+            }
+
+            async generateLLMResponse(query, chunks) {
+                // Подготавливаем контекст из найденных чанков
+                const context = chunks.map((chunk, index) =>
+                    `[${index + 1}] ${chunk.post_title}: ${chunk.content}`
+                ).join('\n\n');
+
+                // Отладка: показываем что отправляем в LLM
+                console.log('📤 Отправка в LLM:', {
+                    query: query,
+                    chunksCount: chunks.length,
+                    contextLength: context.length,
+                    chunks: chunks.map((chunk, i) => ({
+                        index: i + 1,
+                        title: chunk.post_title,
+                        contentLength: chunk.content.length,
+                        contentPreview: chunk.content.substring(0, 100) + '...',
+                        score: chunk.score?.toFixed(4),
+                        bm25Score: chunk.bm25Score?.toFixed(4),
+                        semanticScore: chunk.semanticScore?.toFixed(4)
+                    }))
+                });
+                console.log('📝 Полный контекст для LLM:', context);
+
+                const response = await fetch(this.cloudflareWorkerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        context: context,
+                        model: 'google/gemma-3-27b-it:free'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // Если есть сообщение об ошибке от сервера, используем его
+                    const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+                    throw new Error(errorMessage);
+                }
+
+                return data;
+            }
+
+            addMessage(content, sender, sources = null) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = sender === 'user' ? 'Вы' : '🤖';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+
+                // Конвертируем markdown ссылки в HTML для assistant сообщений
+                if (sender === 'assistant') {
+                    const htmlContent = this.markdownToHtml(content);
+                    contentDiv.innerHTML = htmlContent;
+                } else {
+                    contentDiv.textContent = content;
+                }
+
+                // Добавляем источники для ответов ассистента
+                if (sender === 'assistant' && sources && sources.length > 0) {
+                    const sourcesDiv = document.createElement('div');
+                    sourcesDiv.className = 'sources';
+
+                    const sourcesTitle = document.createElement('h4');
+                    sourcesTitle.textContent = 'Источники:';
+                    sourcesDiv.appendChild(sourcesTitle);
+
+                    sources.forEach((source, index) => {
+                        const sourceItem = document.createElement('div');
+                        sourceItem.className = 'source-item';
+                        sourceItem.id = `source-${index + 1}`; // ID для якорных ссылок
+
+                        const sourceTitle = document.createElement('div');
+                        sourceTitle.className = 'source-title';
+
+                        // Создаем кликабельную ссылку на пост
+                        if (source.post_url) {
+                            const link = document.createElement('a');
+                            link.href = source.post_url;
+                            link.textContent = `${index + 1}. ${source.post_title}`;
+                            link.target = '_blank';
+                            link.style.color = 'inherit';
+                            link.style.textDecoration = 'none';
+                            sourceTitle.appendChild(link);
+                        } else {
+                            sourceTitle.textContent = `${index + 1}. ${source.post_title}`;
+                        }
+
+                        const sourceContent = document.createElement('div');
+                        sourceContent.className = 'source-content';
+                        sourceContent.textContent = source.content.substring(0, 200) + '...';
+
+                        sourceItem.appendChild(sourceTitle);
+                        sourceItem.appendChild(sourceContent);
+                        sourcesDiv.appendChild(sourceItem);
+                    });
+
+                    contentDiv.appendChild(sourcesDiv);
+                }
+
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+
+                // Удаляем welcome message если есть
+                const welcomeMessage = this.chatContainer.querySelector('.welcome-message');
+                if (welcomeMessage) {
+                    welcomeMessage.remove();
+                }
+
+                this.chatContainer.appendChild(messageDiv);
+                this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+            }
+
+            showTyping() {
+                this.typingIndicator.classList.add('show');
+            }
+
+            hideTyping() {
+                this.typingIndicator.classList.remove('show');
+            }
+
+            disableInput() {
+                this.messageInput.disabled = true;
+                this.sendButton.disabled = true;
+            }
+
+            enableInput() {
+                this.messageInput.disabled = false;
+                this.sendButton.disabled = false;
+                this.messageInput.placeholder = 'Напечатай свой вопрос тут...';
+                this.messageInput.focus();
+            }
+
+            showStatus(message, type = '') {
+                this.statusElement.textContent = message;
+                this.statusElement.className = `status ${type}`;
+                this.statusElement.style.display = 'block';
+            }
+
+            hideStatus() {
+                this.statusElement.style.display = 'none';
+            }
+
+            /**
+             * Конвертирует простой markdown в HTML
+             * Поддерживает: ссылки [text](url), ссылки на источники [1] или [1, 5], жирный **text**, курсив *text*, переносы строк
+             */
+            markdownToHtml(markdown) {
+                let html = markdown;
+
+                // Экранируем HTML теги для безопасности
+                html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                // Конвертируем markdown ссылки [text](url) в HTML (должно быть ДО конвертации числовых ссылок)
+                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #667eea; text-decoration: underline;">$1</a>');
+
+                // Конвертируем списки источников [1, 5] или [1, 2, 3]
+                html = html.replace(/\[([\d,\s]+)\]/g, (match, numbers) => {
+                    // Проверяем, что это действительно список чисел (может быть запятые и пробелы)
+                    if (/^[\d,\s]+$/.test(numbers)) {
+                        const nums = numbers.split(',').map(n => n.trim()).filter(n => n);
+                        const links = nums.map(num =>
+                            `<a href="#source-${num}" style="color: #667eea; text-decoration: underline; cursor: pointer;"><span class="source-ref" data-source="${num}">${num}</span></a>`
+                        );
+                        return '[' + links.join(', ') + ']';
+                    }
+                    return match; // Не подходит, оставляем как есть
+                });
+
+                // Жирный текст **text**
+                html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+                // Курсив *text*
+                html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+                // Переносы строк
+                html = html.replace(/\n/g, '<br>');
+
+                return html;
+            }
+        }
+
+        // Инициализируем чат
+        document.addEventListener('DOMContentLoaded', () => {
+            new RAGChat();
+        });
+    </script>

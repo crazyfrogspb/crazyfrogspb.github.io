@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlparse
 import aiofiles
 import aiohttp
 import html2text
+import httpx
 import yaml
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -382,6 +383,16 @@ class TelegraphSyncer:
                         logger.warning(f"Не удалось обработать Google-изображение")
                         continue
 
+                # Специальная обработка для i.ibb.co через HTTP/2
+                if "i.ibb.co" in src or "ibb.co" in src:
+                    img_hash = hashlib.md5(src.encode()).hexdigest()[:8]
+                    img_filename = await self.download_image_http2(src, img_hash)
+                    if img_filename:
+                        img["src"] = f"/assets/images/{img_filename}"
+                    else:
+                        logger.error(f"Не удалось загрузить изображение с i.ibb.co: {src}")
+                    continue
+
                 # Скачиваем изображение с правильными заголовками
                 headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -479,6 +490,55 @@ class TelegraphSyncer:
         except Exception as e:
             logger.warning(f"Ошибка обработки Google-изображения {src}: {e}")
             return src
+
+    async def download_image_http2(self, src: str, img_hash: str) -> Optional[str]:
+        """Загружает изображение через HTTP/2 (для i.ibb.co и других проблемных хостов)"""
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+
+            # Используем httpx с HTTP/2
+            async with httpx.AsyncClient(http2=True, timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(src, headers=headers)
+
+                if response.status_code == 200:
+                    # Определяем расширение из Content-Type или URL
+                    content_type = response.headers.get("content-type", "")
+                    if "image/jpeg" in content_type or "image/jpg" in content_type:
+                        img_ext = "jpg"
+                    elif "image/png" in content_type:
+                        img_ext = "png"
+                    elif "image/gif" in content_type:
+                        img_ext = "gif"
+                    elif "image/webp" in content_type:
+                        img_ext = "webp"
+                    elif "image/svg" in content_type:
+                        img_ext = "svg"
+                    else:
+                        # Пытаемся извлечь из URL
+                        img_ext = src.split(".")[-1].split("?")[0].lower()
+                        if img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
+                            img_ext = "jpg"  # По умолчанию
+
+                    img_filename = f"{img_hash}.{img_ext}"
+                    img_path = self.images_dir / img_filename
+
+                    # Сохраняем изображение
+                    async with aiofiles.open(img_path, "wb") as f:
+                        await f.write(response.content)
+
+                    logger.info(f"Сохранено изображение (HTTP/2): {img_filename}")
+                    return img_filename
+                else:
+                    logger.warning(f"Ошибка загрузки изображения через HTTP/2 {src}: HTTP {response.status_code}")
+                    return None
+
+        except Exception as e:
+            logger.warning(f"Ошибка загрузки через HTTP/2 {src}: {e}")
+            return None
 
     def clean_telegraph_author(self, content: str) -> str:
         """Убирает имена автора, которые Telegraph добавляет в начало статьи"""
@@ -583,7 +643,9 @@ class TelegraphSyncer:
             front_matter["telegraph_url"] = source_url
 
         # Создаем содержимое поста
-        content = f"---\n{yaml.dump(front_matter, allow_unicode=True, default_flow_style=False)}---\n\n"
+        content = (
+            f"---\n{yaml.dump(front_matter, allow_unicode=True, default_flow_style=False, width=float('inf'))}---\n\n"
+        )
         content += content_data["content"]
 
         # Сохраняем пост
@@ -683,10 +745,26 @@ title: "Посты с тегом #{tag}"
                     if len(parts) >= 3:
                         front_matter = yaml.safe_load(parts[1])
 
+                        # Парсим дату из имени файла для правильного URL
+                        filename = post_file.stem  # например: "2025-09-22-title"
+                        url_path = f"/{post_file.stem}/"
+
+                        # Если имя файла в формате YYYY-MM-DD-title, преобразуем в Jekyll permalink
+                        if len(filename) > 10 and filename[4] == "-" and filename[7] == "-":
+                            try:
+                                year = filename[:4]
+                                month = filename[5:7]
+                                day = filename[8:10]
+                                title_part = filename[11:]  # все после даты
+                                url_path = f"/{year}/{month}/{day}/{title_part}/"
+                            except (ValueError, IndexError):
+                                # Если не удалось распарсить, используем исходный формат
+                                pass
+
                         posts_data.append(
                             {
                                 "title": front_matter.get("title", ""),
-                                "url": f"/{post_file.stem}/",
+                                "url": url_path,
                                 "date": front_matter.get("date", ""),
                                 "tags": front_matter.get("tags", []),
                                 "views": front_matter.get("views", 0),

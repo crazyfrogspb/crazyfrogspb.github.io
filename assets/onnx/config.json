@@ -1,0 +1,16 @@
+{
+  "model_name": "sergeyzh/rubert-mini-frida",
+  "max_length": 512,
+  "embedding_dimension": 312,
+  "vocab_size": 83828,
+  "special_tokens": {
+    "cls_token": "[CLS]",
+    "sep_token": "[SEP]",
+    "pad_token": "[PAD]",
+    "unk_token": "[UNK]",
+    "cls_token_id": 2,
+    "sep_token_id": 3,
+    "pad_token_id": 0,
+    "unk_token_id": 1
+  }
+}

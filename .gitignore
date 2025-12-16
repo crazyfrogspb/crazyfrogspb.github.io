@@ -98,3 +98,6 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+
+# Large ONNX models (loaded from HuggingFace CDN)
+*.onnx
