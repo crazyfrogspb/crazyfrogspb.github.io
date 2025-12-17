@@ -163,58 +163,81 @@ class HybridSearchEmbedder {
      * Инициализация с ONNX.js (fallback)
      */
     async initializeONNX(corpusData) {
-        // Загружаем конфиг
-        console.log('Загружаем конфиг...');
-        const configResponse = await fetch(this.configUrl);
-        this.config = await configResponse.json();
+        try {
+            // Загружаем конфиг
+            console.log('📄 [1/5] Загружаем конфиг...');
+            const configResponse = await fetch(this.configUrl);
+            if (!configResponse.ok) {
+                throw new Error(`Config fetch failed: ${configResponse.status}`);
+            }
+            this.config = await configResponse.json();
+            console.log('✅ Конфиг загружен');
 
-        // Загружаем токенайзер
-        console.log('Загружаем токенайзер...');
-        const tokenizerResponse = await fetch(this.tokenizerUrl);
-        this.tokenizer = await tokenizerResponse.json();
+            // Загружаем токенайзер
+            console.log('📝 [2/5] Загружаем токенайзер...');
+            const tokenizerResponse = await fetch(this.tokenizerUrl);
+            if (!tokenizerResponse.ok) {
+                throw new Error(`Tokenizer fetch failed: ${tokenizerResponse.status}`);
+            }
+            this.tokenizer = await tokenizerResponse.json();
+            console.log('✅ Токенайзер загружен');
 
-        // Отладка структуры токенайзера
-        console.log('🔍 Структура токенайзера:', {
-            hasModel: !!this.tokenizer.model,
-            hasVocab: !!this.tokenizer.model?.vocab,
-            hasSpecialTokens: !!this.tokenizer.special_tokens,
-            addedTokens: this.tokenizer.added_tokens?.length || 0,
-            keys: Object.keys(this.tokenizer)
-        });
+            // Отладка структуры токенайзера
+            console.log('🔍 Структура токенайзера:', {
+                hasModel: !!this.tokenizer.model,
+                hasVocab: !!this.tokenizer.model?.vocab,
+                hasSpecialTokens: !!this.tokenizer.special_tokens,
+                addedTokens: this.tokenizer.added_tokens?.length || 0,
+                keys: Object.keys(this.tokenizer)
+            });
 
-        // Загружаем ONNX модель с кешированием
-        console.log('Загружаем ONNX модель...');
+            // Загружаем ONNX модель с кешированием
+            console.log('🧠 [3/5] Загружаем ONNX модель...');
 
-        // Проверяем кеш
-        let modelData = await getModelFromCache(this.modelUrl);
+            // Проверяем кеш
+            let modelData = await getModelFromCache(this.modelUrl);
 
-        if (!modelData) {
-            // Модели нет в кеше - скачиваем
-            console.log('📥 Скачиваем модель с HuggingFace (123MB, это займет ~1 минуту)...');
-            const response = await fetch(this.modelUrl);
+            if (!modelData) {
+                // Модели нет в кеше - скачиваем
+                console.log('📥 Скачиваем модель с HuggingFace (123MB, это займет ~1 минуту)...');
+                const response = await fetch(this.modelUrl);
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch model: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`Model fetch failed: ${response.status}`);
+                }
+
+                modelData = await response.arrayBuffer();
+                console.log('✅ Модель скачана:', (modelData.byteLength / 1024 / 1024).toFixed(2), 'MB');
+
+                // Сохраняем в кеш для будущих загрузок
+                await saveModelToCache(this.modelUrl, modelData);
+                console.log('✅ Модель сохранена в кеш');
+            } else {
+                console.log('✅ Модель загружена из кеша:', (modelData.byteLength / 1024 / 1024).toFixed(2), 'MB');
             }
 
-            modelData = await response.arrayBuffer();
+            // Создаем сессию из ArrayBuffer
+            console.log('⚙️ [4/5] Создаем ONNX inference session...');
+            this.session = await ort.InferenceSession.create(modelData);
+            console.log('✅ ONNX session создан');
 
-            // Сохраняем в кеш для будущих загрузок
-            await saveModelToCache(this.modelUrl, modelData);
+            this.useTransformers = false;
+
+            // Инициализируем BM25 если есть корпус
+            console.log('📊 [5/5] Инициализируем BM25...');
+            if (corpusData) {
+                this.initializeBM25(corpusData);
+            }
+            console.log('✅ BM25 инициализирован');
+
+            this.isInitialized = true;
+            console.log('🎉 HybridSearchEmbedder полностью инициализирован с ONNX.js');
+
+        } catch (error) {
+            console.error('❌ Ошибка в initializeONNX:', error);
+            console.error('Stack trace:', error.stack);
+            throw error;
         }
-
-        // Создаем сессию из ArrayBuffer
-        this.session = await ort.InferenceSession.create(modelData);
-
-        this.useTransformers = false;
-
-        // Инициализируем BM25 если есть корпус
-        if (corpusData) {
-            this.initializeBM25(corpusData);
-        }
-
-        this.isInitialized = true;
-        console.log('✅ HybridSearchEmbedder инициализирован с ONNX.js');
     }
 
     /**
@@ -708,16 +731,23 @@ self.onmessage = async function (e) {
     try {
         switch (type) {
             case 'initialize':
-                if (!embedder) {
-                    embedder = new HybridSearchEmbedder();
-                    await embedder.initialize(data.corpusData);
+                if (!embedder || !embedder.isInitialized) {
+                    try {
+                        embedder = new HybridSearchEmbedder();
+                        await embedder.initialize(data.corpusData);
+                    } catch (initError) {
+                        // Обнуляем embedder при ошибке инициализации
+                        embedder = null;
+                        console.error('❌ Ошибка инициализации embedder:', initError);
+                        throw new Error(`Не удалось инициализировать модель: ${initError.message}`);
+                    }
                 }
                 self.postMessage({ type: 'initialized', id, success: true });
                 break;
 
             case 'encode':
-                if (!embedder) {
-                    throw new Error('Модель не инициализирована');
+                if (!embedder || !embedder.isInitialized) {
+                    throw new Error('Модель не инициализирована. Попробуйте перезагрузить страницу.');
                 }
                 const embedding = await embedder.encode(data.text);
                 self.postMessage({
@@ -729,8 +759,8 @@ self.onmessage = async function (e) {
                 break;
 
             case 'hybrid_search':
-                if (!embedder) {
-                    throw new Error('Модель не инициализирована');
+                if (!embedder || !embedder.isInitialized) {
+                    throw new Error('Модель не инициализирована. Попробуйте перезагрузить страницу.');
                 }
                 const results = await embedder.hybridSearch(data.query, data.documents, data.topK);
                 self.postMessage({
