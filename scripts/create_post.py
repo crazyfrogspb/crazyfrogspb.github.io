@@ -479,10 +479,28 @@ class PostCreator:
         # 13. Пересоздать RAG данные?
         update_rag = input("\nПересоздать RAG данные? (требует окружение breastcancer) [y/N]: ").strip().lower()
         if update_rag == 'y':
-            print("\n📊 Запустите вручную:")
-            print("  workon breastcancer")
-            print("  python scripts/prepare_rag_data.py")
-            print("  python scripts/upload_to_hf.py  # если нужно загрузить на HuggingFace")
+            try:
+                # Пробуем импортировать и запустить prepare_rag_data
+                print("\n📊 Обновляем RAG данные...")
+                from prepare_rag_data import RAGDataPreparer
+
+                rag_preparer = RAGDataPreparer()
+                await rag_preparer.process_posts()
+
+                print("✅ RAG данные обновлены")
+                print("\n💡 Не забудь загрузить модель на HuggingFace если нужно:")
+                print("  python scripts/upload_to_hf.py")
+
+            except ImportError as e:
+                print("\n⚠️  sentence-transformers не установлен.")
+                print("📊 Запустите вручную:")
+                print("  workon breastcancer")
+                print("  python scripts/prepare_rag_data.py")
+                print("  python scripts/upload_to_hf.py  # если нужно загрузить на HuggingFace")
+            except Exception as e:
+                print(f"\n❌ Ошибка обновления RAG данных: {e}")
+                print("📊 Запустите вручную:")
+                print("  python scripts/prepare_rag_data.py")
 
         print("\n🎉 Готово!")
 
