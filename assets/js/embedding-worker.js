@@ -220,6 +220,9 @@ class HybridSearchEmbedder {
             console.log('⚙️ [4/5] Создаем ONNX inference session...');
             this.session = await ort.InferenceSession.create(modelData);
             console.log('✅ ONNX session создан');
+            console.log('   Backend hint:', this.session.handler?._backendHint || 'auto');
+            console.log('   Input names:', this.session.inputNames);
+            console.log('   Output names:', this.session.outputNames);
 
             this.useTransformers = false;
 
