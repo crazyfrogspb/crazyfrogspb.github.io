@@ -117,15 +117,8 @@ class HybridSearchEmbedder {
      */
     async initialize(corpusData = null) {
         try {
-            // Пробуем использовать Transformers.js
-            if (typeof transformers !== 'undefined') {
-                console.log('Инициализация Hybrid Search с Transformers.js...');
-                await this.initializeTransformers(corpusData);
-            } else {
-                console.log('Инициализация Hybrid Search с ONNX.js...');
-                await this.initializeONNX(corpusData);
-            }
-
+            console.log('Инициализация Hybrid Search с ONNX.js...');
+            await this.initializeONNX(corpusData);
         } catch (error) {
             console.error('Ошибка инициализации:', error);
             throw error;
@@ -133,34 +126,7 @@ class HybridSearchEmbedder {
     }
 
     /**
-     * Инициализация с Transformers.js
-     */
-    async initializeTransformers(corpusData) {
-        const { AutoTokenizer, AutoModel, env } = transformers;
-
-        // Настройки для Web Worker
-        env.allowLocalModels = false;
-        env.allowRemoteModels = true;
-
-        console.log('Загружаем токенайзер rubert-mini-frida...');
-        this.tokenizer = await AutoTokenizer.from_pretrained('sergeyzh/rubert-mini-frida');
-
-        console.log('Загружаем модель rubert-mini-frida...');
-        this.model = await AutoModel.from_pretrained('sergeyzh/rubert-mini-frida');
-
-        this.useTransformers = true;
-
-        // Инициализируем BM25 если есть корпус
-        if (corpusData) {
-            this.initializeBM25(corpusData);
-        }
-
-        this.isInitialized = true;
-        console.log('✅ HybridSearchEmbedder инициализирован с Transformers.js');
-    }
-
-    /**
-     * Инициализация с ONNX.js (fallback)
+     * Инициализация с ONNX.js
      */
     async initializeONNX(corpusData) {
         try {
@@ -223,8 +189,6 @@ class HybridSearchEmbedder {
             console.log('   Backend hint:', this.session.handler?._backendHint || 'auto');
             console.log('   Input names:', this.session.inputNames);
             console.log('   Output names:', this.session.outputNames);
-
-            this.useTransformers = false;
 
             // Инициализируем BM25 если есть корпус
             console.log('📊 [5/5] Инициализируем BM25...');
@@ -302,44 +266,11 @@ class HybridSearchEmbedder {
         try {
             // Добавляем префикс для поиска
             const searchText = `search_query: ${text}`;
-
-            if (this.useTransformers) {
-                return await this.encodeWithTransformers(searchText);
-            } else {
-                return await this.encodeWithONNX(searchText);
-            }
-
+            return await this.encodeWithONNX(searchText);
         } catch (error) {
             console.error('Ошибка генерации эмбеддинга:', error);
             throw error;
         }
-    }
-
-    /**
-     * Генерирует эмбеддинг с помощью Transformers.js
-     */
-    async encodeWithTransformers(text) {
-        // Токенизируем с помощью HuggingFace токенайзера
-        const inputs = await this.tokenizer(text, {
-            padding: true,
-            truncation: true,
-            max_length: 512,
-            return_tensors: 'pt'
-        });
-
-        // Получаем эмбеддинги от модели
-        const outputs = await this.model(inputs);
-
-        // Mean pooling
-        const lastHiddenState = outputs.last_hidden_state;
-        const attentionMask = inputs.attention_mask;
-
-        // Применяем attention mask и делаем mean pooling
-        const embedding = this.meanPoolingTransformers(lastHiddenState, attentionMask);
-
-        // Нормализуем
-        const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-        return embedding.map(val => val / norm);
     }
 
     /**

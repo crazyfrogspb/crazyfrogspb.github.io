@@ -141,69 +141,6 @@ class VectorSearch {
     }
 
     /**
-     * Генерирует эмбеддинг для текста (через Worker или простой метод)
-     */
-    async generateEmbedding(text) {
-        // Пробуем использовать Web Worker
-        if (this.workerReady) {
-            try {
-                const response = await this.sendWorkerMessage('encode', { text });
-                return response.embedding;
-            } catch (error) {
-                console.warn('Worker недоступен, используем простой метод:', error);
-            }
-        }
-
-        // Fallback к простому методу
-        return this.generateSimpleEmbedding(text);
-    }
-
-    /**
-     * Простая генерация эмбеддингов в браузере (TF-IDF подобный подход)
-     * Для полноценной работы нужно использовать модель типа sentence-transformers в браузере
-     */
-    generateSimpleEmbedding(text) {
-        // Простая векторизация на основе частоты слов
-        const words = text.toLowerCase()
-            .replace(/[^\w\sа-яё]/gi, ' ')
-            .split(/\s+/)
-            .filter(word => word.length > 2);
-
-        // Используем размерность из метаданных (312 для rubert-mini-frida)
-        const dimension = this.metadata.embedding_dimension || 312;
-        const embedding = new Array(dimension).fill(0);
-
-        // Простое хеширование слов в индексы
-        words.forEach(word => {
-            const hash = this.simpleHash(word) % dimension;
-            embedding[hash] += 1;
-        });
-
-        // Нормализация
-        const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-        if (norm > 0) {
-            for (let i = 0; i < embedding.length; i++) {
-                embedding[i] /= norm;
-            }
-        }
-
-        return embedding;
-    }
-
-    /**
-     * Простая хеш-функция для строк
-     */
-    simpleHash(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Преобразуем в 32-битное число
-        }
-        return Math.abs(hash);
-    }
-
-    /**
      * Выполняет hybrid поиск по запросу (BM25 + семантический)
      */
     async search(query, options = {}) {

@@ -530,11 +530,6 @@ def create_title_chunk(self, post: Dict) -> Dict
 **Модель**: `sergeyzh/rubert-mini-frida`
 - **Размерность**: 312 dimensions
 - **Библиотека**: sentence-transformers (локально)
-- **Fallback модели** (в порядке приоритета):
-  1. `sergeyzh/rubert-mini-frida` ← используется
-  2. `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
-  3. `sentence-transformers/distiluse-base-multilingual-cased`
-  4. `sentence-transformers/all-MiniLM-L6-v2`
 
 **Почему rubert-mini-frida**:
 - Оптимизирована для русского языка
@@ -664,23 +659,19 @@ const output = results.last_hidden_state.data;
 
 ---
 
-1. **ONNX Runtime Web** (используется):
-   ```javascript
-   async initializeONNX(corpusData)
-   ```
-   - Загружает config: `/assets/onnx/config.json`
-   - Загружает tokenizer: `https://huggingface.co/sergeyzh/rubert-mini-frida/resolve/main/tokenizer.json`
-   - Загружает ONNX модель: `https://huggingface.co/crazyfrogspb/rubert-mini-frida-onnx/resolve/main/model.onnx`
-   - Создает inference session: `ort.InferenceSession.create(modelData)`
+**Инициализация с ONNX Runtime Web**:
 
-2. **Transformers.js** (fallback, не используется):
-   ```javascript
-   async initializeTransformers(corpusData)
-   ```
-   - Прямая загрузка HuggingFace модели через Transformers.js
-   - Проще, но больше зависимостей
+```javascript
+async initializeONNX(corpusData)
+```
 
-**Почему выбрали ONNX Runtime Web**:
+**Этапы**:
+- Загружает config: `/assets/onnx/config.json`
+- Загружает tokenizer: `https://huggingface.co/sergeyzh/rubert-mini-frida/resolve/main/tokenizer.json`
+- Загружает ONNX модель: `https://huggingface.co/crazyfrogspb/rubert-mini-frida-onnx/resolve/main/model.onnx`
+- Создает inference session: `ort.InferenceSession.create(modelData)`
+
+**Почему ONNX Runtime Web**:
 - Легче (меньше зависимостей, ~1MB vs ~10MB Transformers.js)
 - Быстрее (оптимизированный runtime, нативный WebAssembly)
 - Лучший контроль (ручная токенизация, можем точно настроить)
@@ -1173,33 +1164,6 @@ async search(query, options = {}) {
 - `limit`: Сколько чанков вернуть (по умолчанию 5, сейчас 7)
 - `threshold`: Минимальный score (0.1)
 - `topK: limit * 2`: Берем в 2 раза больше для запаса после фильтрации
-
-**Fallback эмбеддинги** (`generateSimpleEmbedding()`):
-
-Если Worker недоступен, используется простой TF-IDF подход:
-
-```javascript
-generateSimpleEmbedding(text) {
-    const words = text.toLowerCase()
-        .replace(/[^\w\sа-яё]/gi, ' ')
-        .split(/\s+/)
-        .filter(word => word.length > 2);
-
-    const embedding = new Array(312).fill(0);
-
-    // Простое хеширование слов в индексы
-    words.forEach(word => {
-        const hash = this.simpleHash(word) % 312;
-        embedding[hash] += 1;
-    });
-
-    // L2 нормализация
-    const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    return embedding.map(val => val / norm);
-}
-```
-
-**Зачем fallback**: Graceful degradation если ONNX не работает.
 
 ### RAGChat: `rag-chat.html`
 

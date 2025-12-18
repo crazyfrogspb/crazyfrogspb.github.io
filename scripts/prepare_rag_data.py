@@ -40,16 +40,8 @@ class RAGDataPreparer:
         self.chunk_size = 512  # символов
         self.chunk_overlap = 50  # символов перекрытия
 
-        # Модели для локальных эмбеддингов (в порядке приоритета для русского языка)
-        self.embedding_models = [
-            "sergeyzh/rubert-mini-frida",  # Лучшая для русского языка
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # Многоязычная
-            "sentence-transformers/distiluse-base-multilingual-cased",  # Альтернатива
-            "sentence-transformers/all-MiniLM-L6-v2",  # Быстрая, многоязычная
-            "all-MiniLM-L6-v2",  # Короткое имя
-            "paraphrase-multilingual-MiniLM-L12-v2",  # Короткое имя
-        ]
-        self.current_model_index = 0
+        # Модель для локальных эмбеддингов
+        self.embedding_model = "sergeyzh/rubert-mini-frida"
 
         # Базовый URL сайта
         self.base_url = "https://crazyfrogspb.github.io"
@@ -203,39 +195,27 @@ class RAGDataPreparer:
         }
 
     def generate_embeddings(self, texts_with_prefixes: List[str]) -> List[List[float]]:
-        """Генерирует эмбеддинги локально через sentence-transformers с перебором моделей"""
+        """Генерирует эмбеддинги локально через sentence-transformers с rubert-mini-frida"""
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
             logger.error("sentence-transformers не установлен. Активируйте окружение breastcancer: workon breastcancer")
             return []
 
-        # Перебираем модели до успешной загрузки
-        for i in range(self.current_model_index, len(self.embedding_models)):
-            model_name = self.embedding_models[i]
-            try:
-                logger.info(f"Пробуем модель {model_name}...")
-                model = SentenceTransformer(model_name)
+        try:
+            logger.info(f"Загружаем модель {self.embedding_model}...")
+            model = SentenceTransformer(self.embedding_model)
 
-                # Тестируем на одном тексте
-                test_embedding = model.encode(["тест"], convert_to_tensor=False)
-                if len(test_embedding) > 0:
-                    logger.info(f"Модель {model_name} успешно загружена")
-                    self.current_model_index = i
+            # Генерируем эмбеддинги для всех текстов
+            embeddings = model.encode(texts_with_prefixes, convert_to_tensor=False)
+            embeddings = [emb.tolist() for emb in embeddings]
 
-                    # Генерируем эмбеддинги для всех текстов
-                    embeddings = model.encode(texts_with_prefixes, convert_to_tensor=False)
-                    embeddings = [emb.tolist() for emb in embeddings]
+            logger.info(f"Сгенерировано {len(embeddings)} эмбеддингов с моделью {self.embedding_model}")
+            return embeddings
 
-                    logger.info(f"Сгенерировано {len(embeddings)} эмбеддингов с моделью {model_name}")
-                    return embeddings
-
-            except Exception as e:
-                logger.warning(f"Ошибка с моделью {model_name}: {e}")
-                continue
-
-        logger.error("Не удалось загрузить ни одну модель эмбеддингов")
-        return []
+        except Exception as e:
+            logger.error(f"Ошибка загрузки модели {self.embedding_model}: {e}")
+            return []
 
     def create_text_with_prefix(self, chunk: Dict) -> str:
         """Создает текст с префиксом для эмбеддинга"""
@@ -315,7 +295,7 @@ class RAGDataPreparer:
                 "total_chunks": len(chunks),
                 "chunk_size": self.chunk_size,
                 "chunk_overlap": self.chunk_overlap,
-                "embedding_model": self.embedding_models[self.current_model_index] if embeddings else "none",
+                "embedding_model": self.embedding_model if embeddings else "none",
                 "generation_method": "local",
                 "embedding_dimension": len(embeddings[0]) if embeddings else 0,
             },
