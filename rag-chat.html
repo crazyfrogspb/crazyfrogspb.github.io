@@ -370,8 +370,11 @@ title: RAG-чат
                             .filter(chunk => chunk !== undefined) // Убираем undefined если номер вне диапазона
                         : []; // Если нет цитат - не показываем источники
 
+                    // Перенумеровываем ссылки в тексте (старые номера → новые после фильтрации)
+                    const renumberedAnswer = this.renumberCitations(response.answer, citedNumbers);
+
                     // Добавляем ответ ассистента с отфильтрованными источниками
-                    this.addMessage(response.answer, 'assistant', citedSources);
+                    this.addMessage(renumberedAnswer, 'assistant', citedSources);
 
                     // Добавляем сообщения в историю чата для следующих запросов
                     this.chatHistory.push(
@@ -601,6 +604,55 @@ title: RAG-чат
                 }
 
                 return Array.from(citedNumbers).sort((a, b) => a - b);
+            }
+
+            /**
+             * Перенумеровывает ссылки на источники в тексте
+             * Например: если процитированы [3, 6], заменяет [3] → [1], [6] → [2]
+             * @param {string} text - Текст с оригинальными номерами источников
+             * @param {Array<number>} citedNumbers - Отсортированный массив процитированных номеров
+             * @returns {string} Текст с перенумерованными ссылками
+             */
+            renumberCitations(text, citedNumbers) {
+                if (citedNumbers.length === 0) {
+                    return text;
+                }
+
+                // Создаем мапинг: старый номер → новый номер
+                const mapping = {};
+                citedNumbers.forEach((oldNum, index) => {
+                    mapping[oldNum] = index + 1; // Новая нумерация с 1
+                });
+
+                // Заменяем все ссылки на источники
+                let result = text;
+
+                // Обрабатываем все паттерны вида [числа]
+                result = result.replace(/\[([\d,\s]+)\]/g, (match, numbers) => {
+                    // Проверяем что это список чисел
+                    if (!/^[\d,\s]+$/.test(numbers)) {
+                        return match; // Не трогаем если это не числа
+                    }
+
+                    // Парсим номера
+                    const nums = numbers.split(',')
+                        .map(n => parseInt(n.trim()))
+                        .filter(n => !isNaN(n));
+
+                    // Заменяем каждый номер на новый
+                    const newNums = nums
+                        .map(num => mapping[num])
+                        .filter(num => num !== undefined); // Убираем неупомянутые
+
+                    // Формируем новую ссылку
+                    if (newNums.length === 0) {
+                        return ''; // Удаляем ссылку если все номера были отфильтрованы
+                    }
+
+                    return `[${newNums.join(', ')}]`;
+                });
+
+                return result;
             }
 
             /**
