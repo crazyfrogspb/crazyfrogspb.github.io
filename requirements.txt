@@ -7,3 +7,4 @@ telethon>=1.28.0
 lxml>=4.9.0
 openai>=1.0.0
 python-dotenv>=1.0.0
+huggingface-hub>=0.20.0

@@ -4,6 +4,10 @@ title: Обо мне
 permalink: /about/
 ---
 
+<div style="text-align: center; margin: 2rem 0;">
+  <img src="/assets/images/author-photo-optimized.jpg" alt="Жека Никитин" style="max-width: 300px; height: auto; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+</div>
+
 Всем привет! Меня зовут Жека Никитин, я CTO и кофаундер компании [Цельс](https://celsus.ai), а ещё я с января 2022 года веду телеграм-канал [Варим МЛ](https://t.me/varim_ml) о разных областях машинного обучения.
 
 Что я делал до этого:

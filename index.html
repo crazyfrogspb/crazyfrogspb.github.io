@@ -5,6 +5,9 @@ title: Главная
 
 <div class="home">
   <h1 class="page-heading">Варим ML</h1>
+  <div class="logo-container">
+    <img src="{{ '/assets/images/logo.jpg' | relative_url }}" alt="Логотип Варим ML" class="site-logo">
+  </div>
   <p>{{ site.description }}</p>
 
   <!-- Фильтры и сортировка -->
@@ -42,6 +45,24 @@ title: Главная
 <script src="{{ '/assets/js/posts-filter.js' | relative_url }}"></script>
 
 <style>
+  .logo-container {
+    text-align: center;
+    margin: 1.5rem 0;
+  }
+
+  .site-logo {
+    max-width: 200px;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    .site-logo {
+      max-width: 150px;
+    }
+  }
+
   .filters-container {
     margin: 2rem 0;
     padding: 1rem;
