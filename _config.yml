@@ -17,6 +17,7 @@ url: "https://crazyfrogspb.github.io" # the base hostname & protocol for your si
 
 # Build settings
 theme: minima
+future: true  # Публиковать посты с датой в будущем
 plugins:
   - jekyll-feed
   - jekyll-sitemap
