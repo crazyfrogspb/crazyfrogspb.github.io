@@ -47,18 +47,13 @@ def update_posts_index():
                     else:
                         url_path = f"/{post_file.stem}/"
 
-                    # Обрезаем excerpt если он слишком длинный
-                    excerpt = front_matter.get('excerpt', '')
-                    if len(excerpt) > 200:
-                        excerpt = excerpt[:200] + '...'
-
                     posts.append({
                         'title': front_matter.get('title', post_file.stem),
                         'url': url_path,
                         'date': str(front_matter.get('date', '')),
                         'tags': front_matter.get('tags', []),
                         'views': front_matter.get('views', 0),
-                        'excerpt': excerpt,
+                        'excerpt': front_matter.get('excerpt', ''),
                         'telegraph_url': front_matter.get('telegraph_url', ''),
                         'telegram_url': front_matter.get('telegram_url', '')
                     })
