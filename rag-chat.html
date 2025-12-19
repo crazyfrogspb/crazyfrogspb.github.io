@@ -147,6 +147,53 @@ title: RAG-чат
             line-height: 1.4;
         }
 
+        /* Стили для сгруппированных источников */
+        .source-post {
+            background: #f9f9f9;
+            border-left: 3px solid #667eea;
+        }
+
+        .source-header {
+            margin-bottom: 0.5em;
+        }
+
+        .fragment-count {
+            color: #666;
+            font-size: 0.85em;
+            font-weight: normal;
+            margin-left: 0.5em;
+        }
+
+        .fragments {
+            list-style: none;
+            margin: 0.5em 0 0 1em;
+            padding: 0;
+        }
+
+        .fragment {
+            margin-bottom: 0.5em;
+            color: #555;
+        }
+
+        .fragment strong {
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .fragment small {
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .fragment-preview {
+            margin-top: 0.5em;
+            color: #666;
+            font-size: 0.85em;
+            font-style: italic;
+            padding-left: 1em;
+            border-left: 2px solid #ddd;
+        }
+
         .input-container {
             padding: 20px;
             background: #f8f9fa;
@@ -370,11 +417,16 @@ title: RAG-чат
                             .filter(chunk => chunk !== undefined) // Убираем undefined если номер вне диапазона
                         : []; // Если нет цитат - не показываем источники
 
+                    // Группируем источники по постам для UI
+                    const groupedSources = citedSources.length > 0
+                        ? this.groupSourcesByPost(citedSources, citedNumbers)
+                        : [];
+
                     // Перенумеровываем ссылки в тексте (старые номера → новые после фильтрации)
                     const renumberedAnswer = this.renumberCitations(response.answer, citedNumbers);
 
-                    // Добавляем ответ ассистента с отфильтрованными источниками
-                    this.addMessage(renumberedAnswer, 'assistant', citedSources);
+                    // Добавляем ответ ассистента с сгруппированными источниками
+                    this.addMessage(renumberedAnswer, 'assistant', groupedSources);
 
                     // Добавляем сообщения в историю чата для следующих запросов
                     this.chatHistory.push(
@@ -430,10 +482,11 @@ title: RAG-чат
             }
 
             async generateLLMResponse(query, chunks, chatHistory = []) {
-                // Подготавливаем контекст из найденных чанков
-                const context = chunks.map((chunk, index) =>
-                    `[${index + 1}] ${chunk.post_title}: ${chunk.content}`
-                ).join('\n\n');
+                // Группируем чанки по постам для более структурированного контекста
+                const groupedChunks = this.groupChunksForLLM(chunks);
+
+                // Форматируем сгруппированный контекст
+                const context = this.formatGroupedContextForLLM(groupedChunks);
 
                 // Отладка: показываем что отправляем в LLM
                 console.log('📤 Отправка в LLM:', {
@@ -506,33 +559,74 @@ title: RAG-чат
                     sourcesTitle.textContent = 'Источники:';
                     sourcesDiv.appendChild(sourcesTitle);
 
-                    sources.forEach((source, index) => {
+                    // sources теперь сгруппированы по постам
+                    sources.forEach((post, index) => {
                         const sourceItem = document.createElement('div');
-                        sourceItem.className = 'source-item';
+                        sourceItem.className = 'source-item source-post';
                         sourceItem.id = `source-${index + 1}`; // ID для якорных ссылок
+
+                        // Заголовок поста с ссылкой
+                        const sourceHeader = document.createElement('div');
+                        sourceHeader.className = 'source-header';
 
                         const sourceTitle = document.createElement('div');
                         sourceTitle.className = 'source-title';
 
                         // Создаем кликабельную ссылку на пост
-                        if (source.post_url) {
-                            const link = document.createElement('a');
-                            link.href = source.post_url;
-                            link.textContent = `${index + 1}. ${source.post_title}`;
-                            link.target = '_blank';
-                            link.style.color = 'inherit';
-                            link.style.textDecoration = 'none';
-                            sourceTitle.appendChild(link);
+                        const link = document.createElement('a');
+                        link.href = post.url;
+                        link.textContent = post.title;
+                        link.target = '_blank';
+                        sourceTitle.appendChild(link);
+
+                        // Добавляем информацию о количестве фрагментов
+                        const fragmentCount = document.createElement('span');
+                        fragmentCount.className = 'fragment-count';
+                        const fragmentWord = post.chunks.length === 1
+                            ? 'фрагмент'
+                            : post.chunks.length < 5
+                                ? 'фрагмента'
+                                : 'фрагментов';
+                        const citedNumbersStr = post.citedNumbers
+                            .map(n => `[${n}]`)
+                            .join(', ');
+                        fragmentCount.textContent = ` (${post.chunks.length} ${fragmentWord}: ${citedNumbersStr})`;
+
+                        sourceHeader.appendChild(sourceTitle);
+                        sourceHeader.appendChild(fragmentCount);
+                        sourceItem.appendChild(sourceHeader);
+
+                        // Если больше одного фрагмента - показываем список
+                        if (post.chunks.length > 1) {
+                            const fragmentsList = document.createElement('ul');
+                            fragmentsList.className = 'fragments';
+
+                            post.chunks.forEach(chunk => {
+                                const fragmentItem = document.createElement('li');
+                                fragmentItem.className = 'fragment';
+
+                                const fragmentNumber = document.createElement('strong');
+                                fragmentNumber.textContent = `[${chunk.originalNumber}]`;
+
+                                const fragmentContent = document.createElement('small');
+                                const preview = chunk.content.substring(0, 100) + '...';
+                                fragmentContent.textContent = `: ${preview}`;
+
+                                fragmentItem.appendChild(fragmentNumber);
+                                fragmentItem.appendChild(fragmentContent);
+                                fragmentsList.appendChild(fragmentItem);
+                            });
+
+                            sourceItem.appendChild(fragmentsList);
                         } else {
-                            sourceTitle.textContent = `${index + 1}. ${source.post_title}`;
+                            // Один фрагмент - показываем превью inline
+                            const fragmentPreview = document.createElement('div');
+                            fragmentPreview.className = 'fragment-preview';
+                            const preview = post.chunks[0].content.substring(0, 150) + '...';
+                            fragmentPreview.textContent = preview;
+                            sourceItem.appendChild(fragmentPreview);
                         }
 
-                        const sourceContent = document.createElement('div');
-                        sourceContent.className = 'source-content';
-                        sourceContent.textContent = source.content.substring(0, 200) + '...';
-
-                        sourceItem.appendChild(sourceTitle);
-                        sourceItem.appendChild(sourceContent);
                         sourcesDiv.appendChild(sourceItem);
                     });
 
@@ -653,6 +747,118 @@ title: RAG-чат
                 });
 
                 return result;
+            }
+
+            /**
+             * Группирует чанки по постам для подачи в LLM
+             * Сохраняет релевантность: сортирует группы по макс. score
+             */
+            groupChunksForLLM(chunks) {
+                const postGroups = {};
+
+                // Группируем по post_url
+                chunks.forEach((chunk) => {
+                    const postUrl = chunk.post_url;
+
+                    if (!postGroups[postUrl]) {
+                        postGroups[postUrl] = {
+                            title: chunk.post_title,
+                            url: postUrl,
+                            chunks: [],
+                            maxScore: 0
+                        };
+                    }
+
+                    postGroups[postUrl].chunks.push({
+                        content: chunk.content,
+                        score: chunk.score || 0
+                    });
+
+                    // Обновляем максимальный score для сортировки групп
+                    postGroups[postUrl].maxScore = Math.max(
+                        postGroups[postUrl].maxScore,
+                        chunk.score || 0
+                    );
+                });
+
+                // Преобразуем в массив и сортируем группы по макс. score
+                const grouped = Object.values(postGroups)
+                    .sort((a, b) => b.maxScore - a.maxScore);
+
+                // Сортируем фрагменты внутри каждого поста по score
+                grouped.forEach(post => {
+                    post.chunks.sort((a, b) => b.score - a.score);
+                });
+
+                return grouped;
+            }
+
+            /**
+             * Форматирует сгруппированный контекст для LLM
+             * Формат: [N] Название поста (K фрагментов) \n • Фрагмент 1 \n • Фрагмент 2
+             */
+            formatGroupedContextForLLM(groupedChunks) {
+                let context = "Контекст из постов блога (отсортировано по релевантности):\n\n";
+
+                groupedChunks.forEach((post, index) => {
+                    const fragmentWord = post.chunks.length === 1
+                        ? 'фрагмент'
+                        : post.chunks.length < 5
+                            ? 'фрагмента'
+                            : 'фрагментов';
+
+                    context += `[${index + 1}] ${post.title}`;
+
+                    if (post.chunks.length > 1) {
+                        context += ` (${post.chunks.length} ${fragmentWord})`;
+                    }
+
+                    context += '\n';
+
+                    // Добавляем содержимое фрагментов
+                    post.chunks.forEach(chunk => {
+                        context += `   • ${chunk.content}\n`;
+                    });
+
+                    context += '\n';
+                });
+
+                return context;
+            }
+
+            /**
+             * Группирует процитированные источники по постам для UI
+             * Сохраняет оригинальные номера цитирования
+             */
+            groupSourcesByPost(citedSources, citedNumbers) {
+                const postGroups = {};
+
+                // Группируем по post_url
+                citedSources.forEach((chunk, index) => {
+                    const postUrl = chunk.post_url;
+                    const originalNumber = citedNumbers[index];
+
+                    if (!postGroups[postUrl]) {
+                        postGroups[postUrl] = {
+                            title: chunk.post_title,
+                            url: postUrl,
+                            citedNumbers: [],
+                            chunks: []
+                        };
+                    }
+
+                    postGroups[postUrl].citedNumbers.push(originalNumber);
+                    postGroups[postUrl].chunks.push({
+                        content: chunk.content,
+                        originalNumber: originalNumber,
+                        chunk_index: chunk.chunk_index
+                    });
+                });
+
+                // Преобразуем в массив и сортируем по первому цитированию
+                return Object.values(postGroups).sort((a, b) =>
+                    Math.min(...a.citedNumbers) - Math.min(...b.citedNumbers)
+                );
             }
 
             /**
