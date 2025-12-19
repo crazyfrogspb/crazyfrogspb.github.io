@@ -170,7 +170,7 @@ class PostsFilter {
 
   createPostCard(post) {
     const date = new Date(post.date).toLocaleDateString('ru-RU');
-    const excerpt = post.excerpt ? this.truncateText(post.excerpt, 350) : '';
+    const excerpt = post.excerpt || '';
 
     const tagsHtml = post.tags && post.tags.length > 0
       ? `<div class="post-tags">
