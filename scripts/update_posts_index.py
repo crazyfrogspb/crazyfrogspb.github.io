@@ -25,11 +25,20 @@ def update_posts_index():
                 content = f.read()
             
             # Разделяем front matter и контент
+            # Ищем --- только в начале строки (чтобы не ломать URL с --- внутри)
             if content.startswith('---'):
-                parts = content.split('---', 2)
-                if len(parts) >= 3:
-                    front_matter = yaml.safe_load(parts[1])
-                    
+                # Находим второй --- в начале строки
+                lines = content.split('\n')
+                fm_end = None
+                for i, line in enumerate(lines[1:], 1):  # Пропускаем первую строку с ---
+                    if line.strip() == '---':
+                        fm_end = i
+                        break
+
+                if fm_end:
+                    front_matter_text = '\n'.join(lines[1:fm_end])
+                    front_matter = yaml.safe_load(front_matter_text)
+
                     # Извлекаем дату из имени файла
                     date_match = re.match(r'(\d{4})-(\d{2})-(\d{2})-', post_file.name)
                     if date_match:
@@ -37,12 +46,12 @@ def update_posts_index():
                         url_path = f"/{year}/{month}/{day}/{post_file.stem[11:]}/"
                     else:
                         url_path = f"/{post_file.stem}/"
-                    
+
                     # Обрезаем excerpt если он слишком длинный
                     excerpt = front_matter.get('excerpt', '')
                     if len(excerpt) > 200:
                         excerpt = excerpt[:200] + '...'
-                    
+
                     posts.append({
                         'title': front_matter.get('title', post_file.stem),
                         'url': url_path,
