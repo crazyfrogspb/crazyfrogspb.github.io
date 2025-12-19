@@ -6,6 +6,7 @@ source_type: direct
 tags:
 - жека
 - llm
+telegram_url: https://t.me/varim_ml/170
 title: Как я сделал сайт для Варим МЛ с RAG-чатом
 views: 0
 ---
