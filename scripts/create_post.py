@@ -19,6 +19,24 @@ from telethon import TelegramClient
 load_dotenv()
 
 
+def get_image_extension(content_type: str, url: str) -> str:
+    """Определяет расширение изображения из content-type или URL"""
+    if "image/jpeg" in content_type or "image/jpg" in content_type:
+        return "jpg"
+    elif "image/png" in content_type:
+        return "png"
+    elif "image/gif" in content_type:
+        return "gif"
+    elif "image/webp" in content_type:
+        return "webp"
+    elif "image/svg" in content_type:
+        return "svg"
+
+    # Пытаемся извлечь из URL
+    ext = url.split(".")[-1].split("?")[0].lower()
+    return ext if ext in ["jpg", "jpeg", "png", "gif", "webp", "svg"] else "jpg"
+
+
 class PostCreator:
     def __init__(self):
         self.root_dir = Path(__file__).parent.parent
@@ -128,24 +146,8 @@ class PostCreator:
                         print(f"⚠️  Ошибка скачивания {url}: HTTP {response.status}")
                         return None
 
-                    # Определяем расширение
                     content_type = response.headers.get("content-type", "")
-                    if "image/jpeg" in content_type or "image/jpg" in content_type:
-                        img_ext = "jpg"
-                    elif "image/png" in content_type:
-                        img_ext = "png"
-                    elif "image/gif" in content_type:
-                        img_ext = "gif"
-                    elif "image/webp" in content_type:
-                        img_ext = "webp"
-                    elif "image/svg" in content_type:
-                        img_ext = "svg"
-                    else:
-                        # Пытаемся извлечь из URL
-                        img_ext = url.split(".")[-1].split("?")[0].lower()
-                        if img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
-                            img_ext = "jpg"
-
+                    img_ext = get_image_extension(content_type, url)
                     img_filename = f"{img_hash}.{img_ext}"
                     img_path = self.images_dir / img_filename
 
@@ -174,13 +176,9 @@ class PostCreator:
                 print(f"⚠️  Файл не найден: {local_path}")
                 return None
 
-            # Генерируем hash для имени файла
             img_hash = hashlib.md5(str(source).encode()).hexdigest()[:8]
             img_ext = source.suffix.lstrip(".")
-
-            if not img_ext or img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
-                img_ext = "jpg"
-
+            img_ext = img_ext if img_ext in ["jpg", "jpeg", "png", "gif", "webp", "svg"] else "jpg"
             img_filename = f"{img_hash}.{img_ext}"
             img_path = self.images_dir / img_filename
 

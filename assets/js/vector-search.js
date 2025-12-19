@@ -1,16 +1,8 @@
-/**
- * Векторный поиск для RAG системы
- * Работает с эмбеддингами в браузере
- */
-
 // ===== IndexedDB кеширование для RAG данных =====
 const RAG_CACHE_DB = 'rag-data-cache';
 const RAG_CACHE_STORE = 'data';
-const RAG_DATA_VERSION = 'v1'; // Увеличивай при обновлении RAG данных
+const RAG_DATA_VERSION = 'v1';
 
-/**
- * Открывает IndexedDB для кеширования RAG данных
- */
 function openRagCache() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(RAG_CACHE_DB, 1);
@@ -27,9 +19,6 @@ function openRagCache() {
     });
 }
 
-/**
- * Получает RAG данные из кеша
- */
 async function getRagDataFromCache(dataUrl) {
     try {
         const db = await openRagCache();
@@ -56,9 +45,6 @@ async function getRagDataFromCache(dataUrl) {
     }
 }
 
-/**
- * Сохраняет RAG данные в кеш
- */
 async function saveRagDataToCache(dataUrl, data) {
     try {
         const db = await openRagCache();
@@ -92,9 +78,6 @@ class VectorSearch {
         this.pendingMessages = new Map();
     }
 
-    /**
-     * Инициализирует Web Worker для генерации эмбеддингов
-     */
     async initializeWorker() {
         if (this.worker) {
             return true;
@@ -140,9 +123,6 @@ class VectorSearch {
         }
     }
 
-    /**
-     * Отправляет сообщение в Web Worker
-     */
     sendWorkerMessage(type, data) {
         return new Promise((resolve, reject) => {
             const id = ++this.messageId;
@@ -161,9 +141,6 @@ class VectorSearch {
         });
     }
 
-    /**
-     * Загружает RAG данные (с кешированием в IndexedDB)
-     */
     async loadData() {
         try {
             const dataUrl = '/assets/rag/rag_data_compact.json';
@@ -204,9 +181,6 @@ class VectorSearch {
         }
     }
 
-    /**
-     * Вычисляет косинусное сходство между двумя векторами
-     */
     cosineSimilarity(vecA, vecB) {
         if (vecA.length !== vecB.length) {
             throw new Error('Векторы должны иметь одинаковую размерность');
@@ -232,9 +206,6 @@ class VectorSearch {
         return dotProduct / (normA * normB);
     }
 
-    /**
-     * Выполняет hybrid поиск по запросу (BM25 + семантический)
-     */
     async search(query, options = {}) {
         if (!this.isLoaded) {
             throw new Error('RAG данные не загружены. Вызовите loadData() сначала.');
@@ -299,9 +270,6 @@ class VectorSearch {
         };
     }
 
-    /**
-     * Поиск с группировкой по постам
-     */
     async searchByPosts(query, options = {}) {
         const results = await this.search(query, { ...options, limit: 20 });
 
@@ -335,9 +303,6 @@ class VectorSearch {
         return sortedPosts;
     }
 
-    /**
-     * Получает контекст для RAG (объединяет релевантные чанки)
-     */
     async getContext(query, options = {}) {
         const results = await this.search(query, options);
 
@@ -354,9 +319,6 @@ class VectorSearch {
         return context;
     }
 
-    /**
-     * Форматирует контекст для отправки в LLM
-     */
     formatContextForLLM(context) {
         let formatted = "Контекст для ответа:\n\n";
 
@@ -368,9 +330,6 @@ class VectorSearch {
         return formatted;
     }
 
-    /**
-     * Получает статистику по загруженным данным
-     */
     getStats() {
         if (!this.isLoaded) {
             return null;

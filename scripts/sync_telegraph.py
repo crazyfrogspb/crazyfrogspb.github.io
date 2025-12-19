@@ -24,6 +24,24 @@ from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
 
 load_dotenv()
 
+
+def get_image_extension(content_type: str, url: str) -> str:
+    """Определяет расширение изображения из content-type или URL"""
+    if "image/jpeg" in content_type or "image/jpg" in content_type:
+        return "jpg"
+    elif "image/png" in content_type:
+        return "png"
+    elif "image/gif" in content_type:
+        return "gif"
+    elif "image/webp" in content_type:
+        return "webp"
+    elif "image/svg" in content_type:
+        return "svg"
+
+    ext = url.split(".")[-1].split("?")[0].lower()
+    return ext if ext in ["jpg", "jpeg", "png", "gif", "webp", "svg"] else "jpg"
+
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -341,7 +359,6 @@ class TelegraphSyncer:
         return None
 
     async def process_images(self, article, session):
-        """Обрабатывает изображения в статье"""
         images = article.find_all("img")
 
         for img in images:
@@ -392,27 +409,9 @@ class TelegraphSyncer:
                     try:
                         async with session.get(src, headers=headers) as img_response:
                             if img_response.status == 200:
-                                # Генерируем имя файла
                                 img_hash = hashlib.md5(src.encode()).hexdigest()[:8]
-
-                                # Определяем расширение из Content-Type или URL
                                 content_type = img_response.headers.get("content-type", "")
-                                if "image/jpeg" in content_type or "image/jpg" in content_type:
-                                    img_ext = "jpg"
-                                elif "image/png" in content_type:
-                                    img_ext = "png"
-                                elif "image/gif" in content_type:
-                                    img_ext = "gif"
-                                elif "image/webp" in content_type:
-                                    img_ext = "webp"
-                                elif "image/svg" in content_type:
-                                    img_ext = "svg"
-                                else:
-                                    # Пытаемся извлечь из URL
-                                    img_ext = src.split(".")[-1].split("?")[0].lower()
-                                    if img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
-                                        img_ext = "jpg"  # По умолчанию
-
+                                img_ext = get_image_extension(content_type, src)
                                 img_filename = f"{img_hash}.{img_ext}"
                                 img_path = self.images_dir / img_filename
 
@@ -442,7 +441,6 @@ class TelegraphSyncer:
                 logger.warning(f"Ошибка обработки изображения {src}: {e}")
 
     async def process_google_image(self, src: str, session) -> Optional[str]:
-        """Обрабатывает изображения из Google Drive/Googleusercontent"""
         try:
             # Для Google Drive ссылок пытаемся получить прямую ссылку
             if "drive.google.com" in src:
@@ -472,7 +470,6 @@ class TelegraphSyncer:
             return src
 
     async def download_image_http2(self, src: str, img_hash: str) -> Optional[str]:
-        """Загружает изображение через HTTP/2 (для i.ibb.co и других проблемных хостов)"""
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -485,24 +482,8 @@ class TelegraphSyncer:
                 response = await client.get(src, headers=headers)
 
                 if response.status_code == 200:
-                    # Определяем расширение из Content-Type или URL
                     content_type = response.headers.get("content-type", "")
-                    if "image/jpeg" in content_type or "image/jpg" in content_type:
-                        img_ext = "jpg"
-                    elif "image/png" in content_type:
-                        img_ext = "png"
-                    elif "image/gif" in content_type:
-                        img_ext = "gif"
-                    elif "image/webp" in content_type:
-                        img_ext = "webp"
-                    elif "image/svg" in content_type:
-                        img_ext = "svg"
-                    else:
-                        # Пытаемся извлечь из URL
-                        img_ext = src.split(".")[-1].split("?")[0].lower()
-                        if img_ext not in ["jpg", "jpeg", "png", "gif", "webp", "svg"]:
-                            img_ext = "jpg"  # По умолчанию
-
+                    img_ext = get_image_extension(content_type, src)
                     img_filename = f"{img_hash}.{img_ext}"
                     img_path = self.images_dir / img_filename
 
@@ -521,7 +502,6 @@ class TelegraphSyncer:
             return None
 
     def clean_telegraph_author(self, content: str) -> str:
-        """Убирает имена автора, которые Telegraph добавляет в начало статьи"""
         # Список возможных имен автора для удаления
         author_names = ["Evgeniy Nikitin", "Evgenii Nikitin", "Евгений Никитин", "Евгений", "Evgeniy", "Evgenii"]
 
@@ -546,7 +526,6 @@ class TelegraphSyncer:
         return "\n".join(cleaned_lines)
 
     def extract_views(self, soup) -> int:
-        """Извлекает количество просмотров"""
         try:
             views_elem = soup.find("span", class_="tl_article_header_views")
             if views_elem:
@@ -566,7 +545,6 @@ class TelegraphSyncer:
         return 0
 
     def create_post_slug(self, title: str, date: datetime) -> str:
-        """Создает slug для поста"""
         # Транслитерация и очистка заголовка
         slug = re.sub(r"[^\w\s-]", "", title.lower())
         slug = re.sub(r"[-\s]+", "-", slug)
@@ -579,7 +557,6 @@ class TelegraphSyncer:
         return slug or "post"
 
     async def create_jekyll_post(self, content_data: Dict, message_data: Dict):
-        """Создает Jekyll пост"""
         date = message_data["date"]
         title = content_data["title"]
         slug = self.create_post_slug(title, date)
@@ -635,7 +612,6 @@ class TelegraphSyncer:
         logger.info(f"Создан пост: {filename}")
 
     async def generate_summary(self, content: str, title: str) -> str:
-        """Генерирует краткое саммари поста через LLM"""
         if not self.openai_client:
             logger.warning("OpenRouter API ключ не настроен, используем простое извлечение")
             return self.create_excerpt(content)
@@ -682,7 +658,6 @@ class TelegraphSyncer:
             return self.create_excerpt(content)
 
     def create_excerpt(self, content: str) -> str:
-        """Создает краткое описание поста"""
         # Убираем Markdown разметку и берем первые 150 символов
         text = re.sub(r"[#*`\[\]()]", "", content)
         text = re.sub(r"\n+", " ", text).strip()
@@ -693,7 +668,6 @@ class TelegraphSyncer:
         return text
 
     async def update_tag_pages(self, all_tags: Set[str]):
-        """Обновляет страницы тегов"""
         for tag in all_tags:
             tag_file = self.tags_dir / f"{tag}.md"
 
@@ -710,7 +684,6 @@ title: "Посты с тегом #{tag}"
                 logger.info(f"Создана страница тега: {tag}")
 
     async def update_posts_index(self):
-        """Обновляет индекс постов для фильтрации"""
         posts_data = []
 
         # Читаем все посты
@@ -769,7 +742,6 @@ title: "Посты с тегом #{tag}"
         logger.info(f"Обновлен индекс постов: {len(posts_data)} постов")
 
     async def sync(self):
-        """Основной метод синхронизации"""
         logger.info("Начинаем синхронизацию Telegraph статей")
 
         # Получаем сообщения из Telegram

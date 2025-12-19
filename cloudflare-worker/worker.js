@@ -76,6 +76,21 @@ const CONFIG = {
 };
 
 /**
+ * Создает JSON ответ с CORS заголовками
+ */
+function createJSONResponse(data, status = 200, origin = '*') {
+  return new Response(JSON.stringify(data), {
+    status: status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': origin || '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }
+  });
+}
+
+/**
  * Основной обработчик запросов
  */
 addEventListener('fetch', event => {
@@ -116,13 +131,10 @@ async function handleRequest(request) {
 
   } catch (error) {
     console.error('Worker error:', error);
-    return new Response(JSON.stringify({
+    return createJSONResponse({
       error: 'Internal server error',
       message: 'Произошла ошибка при обработке запроса'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    }, 500, request.headers.get('Origin'));
   }
 }
 
@@ -187,17 +199,16 @@ async function checkRateLimit(request) {
       // Если окно еще не истекло
       if (now - data.timestamp < windowMs) {
         if (data.count >= CONFIG.RATE_LIMIT.MAX_REQUESTS) {
-          return new Response(JSON.stringify({
+          const retryAfter = Math.ceil((data.timestamp + windowMs - now) / 1000);
+          const response = createJSONResponse({
             error: 'Rate limit exceeded',
             message: `Превышен лимит запросов. Попробуйте через ${CONFIG.RATE_LIMIT.WINDOW_MINUTES} минут.`,
-            retryAfter: Math.ceil((data.timestamp + windowMs - now) / 1000)
-          }), {
-            status: 429,
-            headers: {
-              'Content-Type': 'application/json',
-              'Retry-After': Math.ceil((data.timestamp + windowMs - now) / 1000).toString()
-            }
-          });
+            retryAfter: retryAfter
+          }, 429, request.headers.get('Origin'));
+
+          // Добавляем Retry-After заголовок
+          response.headers.set('Retry-After', retryAfter.toString());
+          return response;
         }
 
         // Увеличиваем счетчик
@@ -291,47 +302,35 @@ async function handleRAGRequest(request) {
 
     // Валидация входных данных
     if (!body.query || typeof body.query !== 'string') {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid request',
         message: 'Поле query обязательно и должно быть строкой'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Валидация запроса через LLM
     const isValidQuery = await validateQuery(body.query);
     if (!isValidQuery) {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid query',
         message: 'Ваш запрос не соответствует тематике блога "Варим ML". Пожалуйста, задавайте вопросы о машинном обучении, data science, MLOps или карьере в IT.'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     if (!body.context || !Array.isArray(body.context)) {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid request',
         message: 'Поле context обязательно и должно быть массивом'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Валидация модели (только бесплатные)
     const requestedModel = body.model || CONFIG.DEFAULT_MODEL;
     if (!CONFIG.FREE_MODELS.includes(requestedModel)) {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid model',
         message: `Модель ${requestedModel} не поддерживается. Доступные модели: ${CONFIG.FREE_MODELS.join(', ')}`
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Ограничиваем длину контекста
@@ -379,13 +378,10 @@ async function handleRAGRequest(request) {
       const errorText = await response.text();
       console.error('OpenRouter error:', response.status, errorText);
 
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'API error',
         message: 'Ошибка при обращении к AI модели. Попробуйте позже.'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500, request.headers.get('Origin'));
     }
 
     const result = await response.json();
@@ -412,13 +408,10 @@ async function handleRAGRequest(request) {
   } catch (error) {
     console.error('RAG request error:', error);
 
-    return new Response(JSON.stringify({
+    return createJSONResponse({
       error: 'Processing error',
       message: 'Ошибка при обработке запроса'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    }, 500, request.headers.get('Origin'));
   }
 }
 
@@ -432,46 +425,34 @@ async function handleRAGChatRequest(request) {
 
     // Валидация входных данных
     if (!query || typeof query !== 'string') {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid input',
         message: 'Поле query обязательно и должно быть строкой'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     if (!context || typeof context !== 'string') {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid input',
         message: 'Поле context обязательно и должно быть строкой'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Проверяем, что модель из списка бесплатных
     if (!CONFIG.FREE_MODELS.includes(model)) {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid model',
         message: 'Разрешены только бесплатные модели'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Валидация запроса (с учетом истории чата для уточняющих вопросов)
     const isValidQuery = await validateQuery(query, history);
     if (!isValidQuery) {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid query',
         message: 'Ваш запрос не соответствует тематике блога "Варим ML". Пожалуйста, задавайте вопросы о машинном обучении, data science, карьере в IT и смежных темах.'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Обрезаем контекст если слишком длинный
@@ -561,13 +542,10 @@ ${finalContext}
 
     if (!answer) {
       console.error('Все модели не работают, последняя ошибка:', lastError);
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'API error',
         message: 'Все доступные модели недоступны в вашем регионе'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500, request.headers.get('Origin'));
     }
 
     // Возвращаем результат
@@ -612,13 +590,10 @@ async function handleRephraseRequest(request) {
 
     // Валидация
     if (!query || typeof query !== 'string') {
-      return new Response(JSON.stringify({
+      return createJSONResponse({
         error: 'Invalid input',
         message: 'Поле query обязательно'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400, request.headers.get('Origin'));
     }
 
     // Если нет истории - возвращаем оригинальный запрос

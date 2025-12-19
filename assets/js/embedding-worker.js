@@ -1,19 +1,11 @@
-/**
- * Web Worker для hybrid search (BM25 + эмбеддинги)
- * Использует ONNX.js с моделью rubert-mini-frida
- */
-
 // Загружаем ONNX.js для работы с моделью
 importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js');
 
 // ===== IndexedDB кеширование для ONNX моделей =====
 const MODEL_CACHE_DB = 'onnx-model-cache';
 const MODEL_CACHE_STORE = 'models';
-const MODEL_VERSION = 'v1'; // Увеличивай при обновлении модели
+const MODEL_VERSION = 'v1';
 
-/**
- * Открывает IndexedDB для кеширования моделей
- */
 function openModelCache() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(MODEL_CACHE_DB, 1);
@@ -30,9 +22,6 @@ function openModelCache() {
     });
 }
 
-/**
- * Получает модель из кеша
- */
 async function getModelFromCache(modelUrl) {
     try {
         const db = await openModelCache();
@@ -59,9 +48,6 @@ async function getModelFromCache(modelUrl) {
     }
 }
 
-/**
- * Сохраняет модель в кеш
- */
 async function saveModelToCache(modelUrl, arrayBuffer) {
     try {
         const db = await openModelCache();
@@ -112,9 +98,6 @@ class HybridSearchEmbedder {
         this.config = null;
     }
 
-    /**
-     * Инициализация модели и BM25
-     */
     async initialize(corpusData = null) {
         try {
             console.log('Инициализация Hybrid Search с ONNX.js...');
@@ -125,9 +108,6 @@ class HybridSearchEmbedder {
         }
     }
 
-    /**
-     * Инициализация с ONNX.js
-     */
     async initializeONNX(corpusData) {
         try {
             // Загружаем конфиг
@@ -207,21 +187,6 @@ class HybridSearchEmbedder {
         }
     }
 
-    /**
-     * Парсит vocab.txt в словарь
-     */
-    parseVocab(vocabText) {
-        const vocab = new Map();
-        const lines = vocabText.trim().split('\n');
-        lines.forEach((token, index) => {
-            vocab.set(token, index);
-        });
-        return vocab;
-    }
-
-    /**
-     * Инициализация BM25 с корпусом документов
-     */
     initializeBM25(corpusData) {
         console.log('Инициализация BM25...');
 
@@ -244,9 +209,6 @@ class HybridSearchEmbedder {
         console.log(`BM25 инициализирован: ${totalDocs} документов, средняя длина: ${this.avgDocLength.toFixed(2)}`);
     }
 
-    /**
-     * Простая токенизация для BM25 (не BERT)
-     */
     simpleTokenize(text) {
         return text
             .toLowerCase()
@@ -255,9 +217,6 @@ class HybridSearchEmbedder {
             .filter(word => word.length > 2);
     }
 
-    /**
-     * Генерирует эмбеддинг для текста
-     */
     async encode(text) {
         if (!this.isInitialized) {
             throw new Error('Модель не инициализирована');
@@ -273,9 +232,6 @@ class HybridSearchEmbedder {
         }
     }
 
-    /**
-     * Генерирует эмбеддинг с помощью ONNX + правильного токенайзера
-     */
     async encodeWithONNX(text) {
         // Используем HuggingFace токенайзер для правильной токенизации
         const tokens = this.tokenizeWithHF(text);
@@ -321,9 +277,6 @@ class HybridSearchEmbedder {
         return normalizedEmbedding;
     }
 
-    /**
-     * Токенизация с помощью HuggingFace токенайзера
-     */
     tokenizeWithHF(text) {
         // Получаем специальные токены из конфига или используем стандартные BERT значения
         const clsId = this.config?.special_tokens?.cls_token_id || 2;  // [CLS]
@@ -355,9 +308,6 @@ class HybridSearchEmbedder {
         return tokens;
     }
 
-    /**
-     * WordPiece токенизация с использованием vocab из HF токенайзера
-     */
     wordPieceTokenizeHF(word, unkId) {
         const vocab = this.tokenizer.model?.vocab || {};
 
@@ -404,90 +354,6 @@ class HybridSearchEmbedder {
         return tokens;
     }
 
-    /**
-     * Старая токенизация (fallback)
-     */
-    tokenize(text) {
-        const clsId = this.config.special_tokens.cls_token_id;
-        const sepId = this.config.special_tokens.sep_token_id;
-        const padId = this.config.special_tokens.pad_token_id;
-        const unkId = this.config.special_tokens.unk_token_id;
-
-        const tokens = [clsId]; // [CLS]
-
-        // Нормализуем текст
-        const normalizedText = text.toLowerCase().trim();
-
-        // Разбиваем на слова
-        const words = normalizedText.split(/\s+/);
-
-        for (const word of words) {
-            const wordTokens = this.wordPieceTokenize(word, unkId);
-            tokens.push(...wordTokens);
-        }
-
-        tokens.push(sepId); // [SEP]
-
-        // Обрезаем до максимальной длины (оставляем место для SEP)
-        if (tokens.length > this.maxLength) {
-            tokens.length = this.maxLength - 1;
-            tokens.push(sepId); // [SEP]
-        }
-
-        // НЕ делаем паддинг до фиксированной длины - используем динамическую длину
-        return tokens;
-    }
-
-    /**
-     * WordPiece токенизация для одного слова
-     */
-    wordPieceTokenize(word, unkId) {
-        if (word.length === 0) return [];
-
-        // Проверяем целое слово
-        if (this.vocab.has(word)) {
-            return [this.vocab.get(word)];
-        }
-
-        const tokens = [];
-        let start = 0;
-
-        while (start < word.length) {
-            let end = word.length;
-            let foundToken = null;
-
-            // Ищем самый длинный подходящий подтокен
-            while (start < end) {
-                let substr = word.substring(start, end);
-
-                // Добавляем префикс ## для подслов (кроме первого)
-                if (start > 0) {
-                    substr = '##' + substr;
-                }
-
-                if (this.vocab.has(substr)) {
-                    foundToken = this.vocab.get(substr);
-                    break;
-                }
-                end--;
-            }
-
-            if (foundToken !== null) {
-                tokens.push(foundToken);
-                start = end;
-            } else {
-                // Не найден подходящий токен
-                tokens.push(unkId);
-                start++;
-            }
-        }
-
-        return tokens;
-    }
-
-    /**
-     * Mean pooling для эмбеддингов
-     */
     meanPooling(hiddenStates, seqLength) {
         const embedding = new Array(this.dimension).fill(0);
 
@@ -502,9 +368,6 @@ class HybridSearchEmbedder {
         return embedding.map(val => val / seqLength);
     }
 
-    /**
-     * Вычисляет BM25 скор для запроса относительно документа
-     */
     calculateBM25(queryTerms, docIndex) {
         const doc = this.corpus[docIndex];
         let score = 0;
@@ -524,9 +387,6 @@ class HybridSearchEmbedder {
         return score;
     }
 
-    /**
-     * Hybrid search: комбинирует BM25 и семантический поиск
-     */
     async hybridSearch(query, documents, topK = 10) {
         if (!this.isInitialized) {
             throw new Error('Модель не инициализирована');
@@ -637,9 +497,6 @@ class HybridSearchEmbedder {
         return filtered.slice(0, topK);
     }
 
-    /**
-     * Вычисляет косинусное сходство между двумя векторами
-     */
     cosineSimilarity(vec1, vec2) {
         let dotProduct = 0;
         let norm1 = 0;

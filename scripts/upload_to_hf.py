@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Upload ONNX model to HuggingFace"""
 
 from huggingface_hub import HfApi, create_repo
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env
 load_dotenv()
 
-# Токен HuggingFace (из переменных окружения)
+# Токен HuggingFace
 token = os.getenv("HUGGINGFACE_TOKEN")
 if not token:
     raise ValueError(
@@ -26,16 +24,13 @@ repo_type = "model"
 
 # Создаем репозиторий
 print(f"Создаем репозиторий {repo_id}...")
-try:
-    create_repo(
-        repo_id=repo_id,
-        token=token,
-        repo_type=repo_type,
-        exist_ok=True
-    )
-    print("✅ Репозиторий создан")
-except Exception as e:
-    print(f"Репозиторий уже существует или ошибка: {e}")
+create_repo(
+    repo_id=repo_id,
+    token=token,
+    repo_type=repo_type,
+    exist_ok=True
+)
+print("✅ Репозиторий создан или уже существует")
 
 # Загружаем файлы
 files_to_upload = [
