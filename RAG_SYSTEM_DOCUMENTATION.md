@@ -46,7 +46,7 @@
 - ONNX Runtime Web (ML inference в браузере)
 - Cloudflare Workers (serverless backend)
 - OpenRouter API (LLM генерация)
-- IndexedDB (кэширование модели)
+- IndexedDB (кэширование модели и RAG данных)
 
 ---
 
@@ -349,7 +349,7 @@ git push origin master
 - **Chat history**: Контекстная память последних 6 сообщений (3 Q&A пары)
 - **LLM validation**: Валидация запросов на соответствие тематике блога
 - **Serverless backend**: Cloudflare Workers с rate limiting и CORS
-- **IndexedDB caching**: Модель кешируется локально после первой загрузки
+- **IndexedDB caching**: ONNX модель (123MB) и RAG данные (~15MB) кешируются локально
 - **Cited sources filtering**: Показываем только процитированные источники
 
 ---
@@ -376,6 +376,7 @@ git push origin master
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │  VectorSearch (vector-search.js)                     │  │
 │  │  - Загрузка RAG данных (rag_data_compact.json)      │  │
+│  │  - IndexedDB кеширование RAG данных (~15MB)         │  │
 │  │  - Управление Web Worker                             │  │
 │  │  - Координация hybrid search                         │  │
 │  └──────────────┬───────────────────────────────────────┘  │
@@ -386,7 +387,7 @@ git push origin master
 │  │  ┌────────────────────────────────────────────────┐  │  │
 │  │  │  HybridSearchEmbedder                           │  │  │
 │  │  │  - ONNX Runtime Web (rubert-mini-frida)         │  │  │
-│  │  │  - IndexedDB кеширование модели                 │  │  │
+│  │  │  - IndexedDB кеширование модели (123MB)         │  │  │
 │  │  │  - BM25 scoring                                  │  │  │
 │  │  │  - Semantic scoring (cosine similarity)         │  │  │
 │  │  │  - Hybrid scoring (30% BM25 + 70% Semantic)     │  │  │
@@ -1107,12 +1108,23 @@ cosineSimilarity(vec1, vec2) {
 
 #### Основные методы:
 
-##### 1. `loadData()` - Загрузка RAG данных
+##### 1. `loadData()` - Загрузка RAG данных с кешированием
 
 ```javascript
 async loadData() {
-    const response = await fetch('/assets/rag/rag_data_compact.json');
-    const data = await response.json();
+    const dataUrl = '/assets/rag/rag_data_compact.json';
+
+    // Проверяем IndexedDB кеш
+    let data = await getRagDataFromCache(dataUrl);
+
+    if (!data) {
+        // Скачиваем с сервера при первом визите
+        const response = await fetch(dataUrl);
+        data = await response.json();
+
+        // Сохраняем в кеш для будущих загрузок
+        await saveRagDataToCache(dataUrl, data);
+    }
 
     this.chunks = data.chunks;           // 1666 chunks
     this.embeddings = data.embeddings;   // 1666 x 312 embeddings
@@ -1123,6 +1135,11 @@ async loadData() {
 ```
 
 **Размер**: ~15MB (минифицированный JSON)
+
+**Кеширование**:
+- Первый визит: Загрузка с сервера (~2-5 секунд) → сохранение в IndexedDB
+- Последующие: Мгновенная загрузка из IndexedDB (<0.5 секунды)
+- Версионирование: `RAG_DATA_VERSION = 'v1'` - увеличиваем при обновлении данных
 
 ##### 2. `initializeWorker()` - Инициализация Web Worker
 
@@ -1903,19 +1920,33 @@ ${finalContext}
 
 ## Оптимизации и особенности
 
-### 1. IndexedDB Model Caching
+### 1. IndexedDB Caching
 
-**Проблема**: ONNX модель 123MB загружается каждый раз при открытии страницы.
+**Проблема**: ONNX модель (123MB) и RAG данные (~15MB) загружаются каждый раз при открытии страницы.
 
-**Решение**:
-- Первый визит: Скачиваем модель с HuggingFace, сохраняем в IndexedDB
-- Последующие визиты: Мгновенная загрузка из IndexedDB
+**Решение**: Кеширование в IndexedDB с версионированием
+
+#### ONNX модель (123MB)
+- **База данных**: `onnx-model-cache`
+- **Первый визит**: Скачиваем модель с HuggingFace, сохраняем в IndexedDB
+- **Последующие визиты**: Мгновенная загрузка из IndexedDB
+- **Версионирование**: `MODEL_VERSION = 'v1'` - увеличиваем при обновлении модели
 
 **Экономия**:
 - **Времени**: ~30-60 секунд → <1 секунда
 - **Трафика**: 123MB → 0MB (после первой загрузки)
 
-**Версионирование**: `MODEL_VERSION = 'v1'` - увеличиваем при обновлении модели.
+#### RAG данные (~15MB)
+- **База данных**: `rag-data-cache`
+- **Первый визит**: Скачиваем JSON с сервера, сохраняем в IndexedDB
+- **Последующие визиты**: Мгновенная загрузка из IndexedDB
+- **Версионирование**: `RAG_DATA_VERSION = 'v1'` - увеличиваем при обновлении данных
+
+**Экономия**:
+- **Времени**: ~2-5 секунд → <0.5 секунды
+- **Трафика**: ~15MB → 0MB (после первой загрузки)
+
+**Итого**: Первый визит загружает ~138MB, последующие - всё из кеша (0MB).
 
 ### 2. Query Rephrasing
 

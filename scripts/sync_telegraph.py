@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Скрипт для синхронизации статей Telegraph из канала @varim_ml
-"""
 
 import asyncio
 import hashlib
@@ -25,7 +22,6 @@ from openai import AsyncOpenAI
 from telethon import TelegramClient
 from telethon.tl.types import MessageEntityTextUrl, MessageEntityUrl
 
-# Загружаем переменные из .env файла
 load_dotenv()
 
 # Настройка логирования
@@ -70,7 +66,6 @@ class TelegraphSyncer:
         self.processed_urls = self.load_processed_urls()
 
     def load_processed_urls(self) -> Set[str]:
-        """Загружает список уже обработанных URL"""
         cache_file = self.root_dir / ".processed_urls.json"
         if cache_file.exists():
             try:
@@ -81,7 +76,6 @@ class TelegraphSyncer:
         return set()
 
     def save_processed_urls(self):
-        """Сохраняет список обработанных URL"""
         cache_file = self.root_dir / ".processed_urls.json"
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
@@ -90,7 +84,6 @@ class TelegraphSyncer:
             logger.error(f"Ошибка сохранения кэша URL: {e}")
 
     async def get_telegram_messages(self) -> List[Dict]:
-        """Получает сообщения из Telegram канала"""
         if not self.api_id or not self.api_hash:
             logger.error("Не установлены TELEGRAM_API_ID и TELEGRAM_API_HASH")
             logger.info("Создайте файл .env с переменными TELEGRAM_API_ID и TELEGRAM_API_HASH")
@@ -151,7 +144,6 @@ class TelegraphSyncer:
             return []
 
     def extract_content_urls(self, message) -> List[str]:
-        """Извлекает Telegraph и Google Docs URL из сообщения"""
         urls = []
 
         # Проверяем entities
@@ -182,35 +174,24 @@ class TelegraphSyncer:
             if self.is_google_docs_url(url):
                 urls.append(url)
 
-        return list(set(urls))  # Убираем дубликаты
+        return list(set(urls))
 
     def is_telegraph_url(self, url: str) -> bool:
-        """Проверяет, является ли URL ссылкой на Telegraph"""
-        try:
-            parsed = urlparse(url)
-            return parsed.netloc in ["telegra.ph", "te.legra.ph"]
-        except:
-            return False
+        parsed = urlparse(url)
+        return parsed.netloc in ["telegra.ph", "te.legra.ph"]
 
     def is_google_docs_url(self, url: str) -> bool:
-        """Проверяет, является ли URL ссылкой на Google Docs"""
-        try:
-            parsed = urlparse(url)
-            return "docs.google.com" in parsed.netloc and "/document/" in url
-        except:
-            return False
+        parsed = urlparse(url)
+        return "docs.google.com" in parsed.netloc and "/document/" in url
 
     def extract_hashtags(self, text: str) -> List[str]:
-        """Извлекает хэштеги из текста"""
         if not text:
             return []
 
         hashtags = re.findall(r"#(\w+)", text)
-        # Приводим к нижнему регистру и убираем дубликаты
         return list(set(tag.lower() for tag in hashtags))
 
     async def download_telegraph_content(self, url: str, max_retries: int = 5) -> Optional[Dict]:
-        """Скачивает контент Telegraph статьи с повторными попытками"""
         for attempt in range(max_retries):
             try:
                 # Увеличиваем таймаут для медленных соединений
@@ -295,7 +276,6 @@ class TelegraphSyncer:
         return None
 
     async def download_google_docs_content(self, url: str, max_retries: int = 3) -> Optional[Dict]:
-        """Скачивает контент Google Docs"""
         try:
             # Преобразуем URL в экспортный формат
             if "/edit" in url:

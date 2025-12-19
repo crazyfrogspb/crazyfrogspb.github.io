@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Скрипт для подготовки данных для RAG-поиска:
-1. Чанкинг постов на фрагменты
-2. Генерация эмбеддингов через OpenRouter
-3. Подготовка данных для клиентского векторного поиска
-"""
 
 import asyncio
 import json
@@ -16,8 +10,6 @@ from typing import Dict, List
 import aiofiles
 import yaml
 
-# Локальная генерация эмбеддингов, .env не нужен
-
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -25,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 class RAGDataPreparer:
     def __init__(self):
-        # Используем только локальные эмбеддинги, API ключи не нужны
-
         # Пути
         self.root_dir = Path(__file__).parent.parent
         self.posts_dir = self.root_dir / "_posts"
@@ -47,7 +37,6 @@ class RAGDataPreparer:
         self.base_url = "https://crazyfrogspb.github.io"
 
     async def load_posts(self) -> List[Dict]:
-        """Загружает все посты из директории _posts"""
         posts = []
 
         for post_file in self.posts_dir.glob("*.md"):
@@ -87,7 +76,6 @@ class RAGDataPreparer:
         return posts
 
     def extract_post_url(self, filename: str, front_matter: Dict) -> str:
-        """Извлекает URL поста на основе имени файла"""
         # Формат: YYYY-MM-DD-slug.md
         parts = filename.split("-", 3)
         if len(parts) >= 4:
@@ -96,7 +84,6 @@ class RAGDataPreparer:
         return f"{self.base_url}/{filename}/"
 
     def clean_content(self, content: str) -> str:
-        """Очищает контент от Markdown разметки для чанкинга"""
         # Убираем изображения
         content = re.sub(r"!\[.*?\]\(.*?\)", "", content)
 
@@ -121,7 +108,6 @@ class RAGDataPreparer:
         return content.strip()
 
     def create_chunks(self, post: Dict) -> List[Dict]:
-        """Создает чанки из поста"""
         content = self.clean_content(post["content"])
 
         # Если контент короткий, возвращаем как один чанк
@@ -173,7 +159,6 @@ class RAGDataPreparer:
         return chunks
 
     def create_summary_chunk(self, post: Dict) -> Dict:
-        """Создает чанк из саммари поста"""
         return {
             "post_id": post["id"],
             "post_title": post["title"],
@@ -184,7 +169,6 @@ class RAGDataPreparer:
         }
 
     def create_title_chunk(self, post: Dict) -> Dict:
-        """Создает чанк из заголовка поста"""
         return {
             "post_id": post["id"],
             "post_title": post["title"],
@@ -195,7 +179,6 @@ class RAGDataPreparer:
         }
 
     def generate_embeddings(self, texts_with_prefixes: List[str]) -> List[List[float]]:
-        """Генерирует эмбеддинги локально через sentence-transformers с rubert-mini-frida"""
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
@@ -218,7 +201,6 @@ class RAGDataPreparer:
             return []
 
     def create_text_with_prefix(self, chunk: Dict) -> str:
-        """Создает текст с префиксом для эмбеддинга"""
         chunk_type = chunk["type"]
         content = chunk["content"]
         title = chunk["post_title"]
@@ -237,7 +219,6 @@ class RAGDataPreparer:
             return f"search_document: {content}"
 
     async def process_posts(self):
-        """Основной метод обработки постов"""
         logger.info("Начинаем подготовку данных для RAG")
 
         # Загружаем посты
@@ -286,7 +267,6 @@ class RAGDataPreparer:
         logger.info("Подготовка данных для RAG завершена")
 
     async def save_rag_data(self, chunks: List[Dict], embeddings: List[List[float]]):
-        """Сохраняет данные для RAG"""
         # Подготавливаем данные для сохранения
         rag_data = {
             "chunks": [],

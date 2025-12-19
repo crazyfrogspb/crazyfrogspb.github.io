@@ -3,6 +3,83 @@
  * Работает с эмбеддингами в браузере
  */
 
+// ===== IndexedDB кеширование для RAG данных =====
+const RAG_CACHE_DB = 'rag-data-cache';
+const RAG_CACHE_STORE = 'data';
+const RAG_DATA_VERSION = 'v1'; // Увеличивай при обновлении RAG данных
+
+/**
+ * Открывает IndexedDB для кеширования RAG данных
+ */
+function openRagCache() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(RAG_CACHE_DB, 1);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(RAG_CACHE_STORE)) {
+                db.createObjectStore(RAG_CACHE_STORE);
+            }
+        };
+    });
+}
+
+/**
+ * Получает RAG данные из кеша
+ */
+async function getRagDataFromCache(dataUrl) {
+    try {
+        const db = await openRagCache();
+        const cacheKey = `${dataUrl}_${RAG_DATA_VERSION}`;
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([RAG_CACHE_STORE], 'readonly');
+            const store = transaction.objectStore(RAG_CACHE_STORE);
+            const request = store.get(cacheKey);
+
+            request.onsuccess = () => {
+                if (request.result) {
+                    console.log('✅ RAG данные загружены из IndexedDB кеша');
+                    resolve(request.result);
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.warn('⚠️ Ошибка чтения из IndexedDB кеша:', error);
+        return null;
+    }
+}
+
+/**
+ * Сохраняет RAG данные в кеш
+ */
+async function saveRagDataToCache(dataUrl, data) {
+    try {
+        const db = await openRagCache();
+        const cacheKey = `${dataUrl}_${RAG_DATA_VERSION}`;
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([RAG_CACHE_STORE], 'readwrite');
+            const store = transaction.objectStore(RAG_CACHE_STORE);
+            const request = store.put(data, cacheKey);
+
+            request.onsuccess = () => {
+                console.log('✅ RAG данные сохранены в IndexedDB кеш');
+                resolve();
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.warn('⚠️ Ошибка записи в IndexedDB кеш:', error);
+    }
+}
+
 class VectorSearch {
     constructor() {
         this.chunks = [];
@@ -85,18 +162,33 @@ class VectorSearch {
     }
 
     /**
-     * Загружает RAG данные
+     * Загружает RAG данные (с кешированием в IndexedDB)
      */
     async loadData() {
         try {
+            const dataUrl = '/assets/rag/rag_data_compact.json';
             console.log('Загружаем RAG данные...');
-            const response = await fetch('/assets/rag/rag_data_compact.json');
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // Проверяем кеш
+            let data = await getRagDataFromCache(dataUrl);
+
+            if (!data) {
+                // Данных нет в кеше - скачиваем
+                console.log('📥 Скачиваем RAG данные с сервера (~15MB)...');
+                const response = await fetch(dataUrl);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                data = await response.json();
+                console.log('✅ Данные скачаны:', (JSON.stringify(data).length / 1024 / 1024).toFixed(2), 'MB');
+
+                // Сохраняем в кеш для будущих загрузок
+                await saveRagDataToCache(dataUrl, data);
+            } else {
+                console.log('✅ Данные загружены из кеша:', (JSON.stringify(data).length / 1024 / 1024).toFixed(2), 'MB');
             }
-
-            const data = await response.json();
 
             this.chunks = data.chunks;
             this.embeddings = data.embeddings;

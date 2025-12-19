@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Скрипт для создания нового поста вручную с интерактивным шаблоном
-"""
 
 import asyncio
 import hashlib
@@ -19,7 +16,6 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from telethon import TelegramClient
 
-# Загружаем переменные из .env
 load_dotenv()
 
 
@@ -47,7 +43,6 @@ class PostCreator:
             )
 
     def slugify(self, text: str) -> str:
-        """Создает slug из текста"""
         # Транслитерация кириллицы
         translit_map = {
             'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
@@ -78,7 +73,6 @@ class PostCreator:
         return slug or 'post'
 
     async def get_telegram_views(self, message_url: str) -> Optional[int]:
-        """Получает количество просмотров из Telegram сообщения"""
         if not self.api_id or not self.api_hash:
             print("⚠️  TELEGRAM_API_ID и TELEGRAM_API_HASH не настроены")
             return None
@@ -118,7 +112,6 @@ class PostCreator:
             return None
 
     async def download_image(self, url: str) -> Optional[str]:
-        """Скачивает изображение по URL и возвращает имя файла"""
         try:
             # Генерируем hash для имени файла
             img_hash = hashlib.md5(url.encode()).hexdigest()[:8]
@@ -168,7 +161,6 @@ class PostCreator:
             return None
 
     def copy_local_image(self, local_path: str) -> Optional[str]:
-        """Копирует локальное изображение и возвращает имя файла"""
         try:
             source = Path(local_path).expanduser()
 
@@ -202,7 +194,6 @@ class PostCreator:
             return None
 
     async def process_images_in_content(self, content: str) -> str:
-        """Обрабатывает все изображения в Markdown контенте"""
         print("\n🖼️  Обрабатываем изображения...")
 
         # Паттерн для Markdown изображений: ![alt](path)
@@ -248,7 +239,6 @@ class PostCreator:
         return processed_content
 
     async def generate_excerpt(self, content: str, title: str) -> Optional[str]:
-        """Генерирует excerpt через LLM"""
         if not self.openai_client:
             print("⚠️  OPENROUTER_API_KEY не настроен, пропускаем генерацию excerpt")
             return None
@@ -295,7 +285,6 @@ class PostCreator:
             return None
 
     async def create_post(self):
-        """Интерактивное создание поста"""
         print("=" * 70)
         print("📝 Создание нового поста для Варим ML")
         print("=" * 70)
