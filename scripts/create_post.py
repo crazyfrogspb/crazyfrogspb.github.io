@@ -166,9 +166,14 @@ class PostCreator:
         try:
             source = Path(local_path).expanduser()
 
-            # Если относительный путь, пробуем от корня проекта
+            # Если относительный путь, пробуем несколько вариантов
             if not source.is_absolute():
+                # Вариант 1: от корня проекта
                 source = (self.root_dir / source).resolve()
+
+                # Вариант 2: если не найден, пробуем в директории post/
+                if not source.exists():
+                    source = (self.root_dir / "post" / local_path).resolve()
             else:
                 source = source.resolve()
 
