@@ -175,7 +175,7 @@ class PostsFilter {
     const tagsHtml = post.tags && post.tags.length > 0
       ? `<div class="post-tags">
           ${post.tags.map(tag =>
-        `<a href="/tags/${tag}/" class="post-tag">#${tag}</a>`
+        `<a href="/tags/${this.escapeHtml(tag)}/" class="post-tag">#${this.escapeHtml(tag)}</a>`
       ).join('')}
          </div>`
       : '';
@@ -189,11 +189,11 @@ class PostsFilter {
     return `
       <article class="post-card">
         <h2 class="post-title">
-          <a href="${post.url}">${this.escapeHtml(post.title)}</a>
+          <a href="${this.escapeUrl(post.url)}">${this.escapeHtml(post.title)}</a>
         </h2>
 
         <div class="post-meta">
-          <time datetime="${post.date}">${date}</time>
+          <time datetime="${this.escapeHtml(post.date)}">${date}</time>
           ${viewsHtml}
         </div>
         
@@ -210,11 +210,11 @@ class PostsFilter {
     const links = [];
 
     if (post.telegraph_url) {
-      links.push(`<a href="${post.telegraph_url}" target="_blank" rel="noopener">📖 Telegraph</a>`);
+      links.push(`<a href="${this.escapeUrl(post.telegraph_url)}" target="_blank" rel="noopener">📖 Telegraph</a>`);
     }
 
     if (post.telegram_url) {
-      links.push(`<a href="${post.telegram_url}" target="_blank" rel="noopener">💬 Telegram</a>`);
+      links.push(`<a href="${this.escapeUrl(post.telegram_url)}" target="_blank" rel="noopener">💬 Telegram</a>`);
     }
 
     return links.length > 0
@@ -231,6 +231,23 @@ class PostsFilter {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  escapeUrl(url) {
+    if (!url) return '#';
+    const urlStr = String(url).trim();
+    const lower = urlStr.toLowerCase();
+
+    if (lower.startsWith('javascript:') || lower.startsWith('data:') ||
+        lower.startsWith('vbscript:') || lower.startsWith('file:')) {
+      return '#';
+    }
+
+    if (urlStr.startsWith('http://') || urlStr.startsWith('https://') || urlStr.startsWith('/')) {
+      return urlStr;
+    }
+
+    return '#';
   }
 
   showError(message) {
