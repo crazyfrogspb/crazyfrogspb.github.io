@@ -26,12 +26,18 @@ class RAGDataPreparer:
         # Создаем директорию для RAG данных
         self.output_dir.mkdir(exist_ok=True)
 
-        # Конфигурация чанкинга
-        self.chunk_size = 512  # символов
-        self.chunk_overlap = 50  # символов перекрытия
+        # Конфигурация чанкинга (в токенах!)
+        # rubert-mini-frida имеет max_seq_length=512 токенов
+        # Префикс занимает ~30 токенов (worst case), остаётся 512-30=482 для контента
+        # Используем 448 (87.5% от max) для безопасности
+        self.chunk_size = 448  # токенов контента (было 512 символов)
+        self.chunk_overlap = 75  # токенов перекрытия (~17%, было 64)
 
         # Модель для локальных эмбеддингов
         self.embedding_model = "sergeyzh/rubert-mini-frida"
+
+        # Токенайзер (будет загружен при первом использовании)
+        self.tokenizer = None
 
         # Базовый URL сайта
         self.base_url = "https://crazyfrogspb.github.io"
@@ -107,11 +113,34 @@ class RAGDataPreparer:
 
         return content.strip()
 
+    def ensure_tokenizer(self):
+        """Загружает токенайзер если ещё не загружен"""
+        if self.tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
+
+                logger.info(f"Загружаем токенайзер для {self.embedding_model}...")
+                self.tokenizer = AutoTokenizer.from_pretrained(self.embedding_model)
+                logger.info("✅ Токенайзер загружен")
+            except ImportError:
+                logger.error("transformers не установлен. Активируйте окружение breastcancer")
+                raise
+            except Exception as e:
+                logger.error(f"Ошибка загрузки токенайзера: {e}")
+                raise
+
     def create_chunks(self, post: Dict) -> List[Dict]:
+        """Создает чанки из поста (токенный чанкинг)"""
+        # Загружаем токенайзер если нужно
+        self.ensure_tokenizer()
+
         content = self.clean_content(post["content"])
 
+        # Токенизируем весь контент
+        tokens = self.tokenizer.encode(content, add_special_tokens=False)
+
         # Если контент короткий, возвращаем как один чанк
-        if len(content) <= self.chunk_size:
+        if len(tokens) <= self.chunk_size:
             return [
                 {
                     "post_id": post["id"],
@@ -124,19 +153,18 @@ class RAGDataPreparer:
             ]
 
         chunks = []
-        start = 0
+        start_token = 0
         chunk_index = 0
 
-        while start < len(content):
-            end = start + self.chunk_size
+        while start_token < len(tokens):
+            # Вырезаем чанк токенов
+            end_token = start_token + self.chunk_size
 
-            # Если не последний чанк, ищем ближайший пробел для разрыва
-            if end < len(content):
-                space_pos = content.rfind(" ", start, end)
-                if space_pos > start:
-                    end = space_pos
+            # Берём токены для текущего чанка
+            chunk_tokens = tokens[start_token:end_token]
 
-            chunk_content = content[start:end].strip()
+            # Декодируем обратно в текст
+            chunk_content = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True).strip()
 
             if chunk_content:
                 chunks.append(
@@ -152,9 +180,7 @@ class RAGDataPreparer:
                 chunk_index += 1
 
             # Следующий чанк начинается с перекрытием
-            start = end - self.chunk_overlap
-            if start < 0:
-                start = end
+            start_token = end_token - self.chunk_overlap
 
         return chunks
 
@@ -267,14 +293,16 @@ class RAGDataPreparer:
         logger.info("Подготовка данных для RAG завершена")
 
     async def save_rag_data(self, chunks: List[Dict], embeddings: List[List[float]]):
+        """Сохраняет данные для RAG"""
         # Подготавливаем данные для сохранения
         rag_data = {
             "chunks": [],
             "embeddings": embeddings,
             "metadata": {
                 "total_chunks": len(chunks),
-                "chunk_size": self.chunk_size,
-                "chunk_overlap": self.chunk_overlap,
+                "chunk_size_tokens": self.chunk_size,  # В токенах!
+                "chunk_overlap_tokens": self.chunk_overlap,  # В токенах!
+                "chunking_method": "token-based",  # Было character-based
                 "embedding_model": self.embedding_model if embeddings else "none",
                 "generation_method": "local",
                 "embedding_dimension": len(embeddings[0]) if embeddings else 0,
