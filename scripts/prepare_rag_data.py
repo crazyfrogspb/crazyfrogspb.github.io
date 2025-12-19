@@ -42,6 +42,23 @@ class RAGDataPreparer:
         # Базовый URL сайта
         self.base_url = "https://crazyfrogspb.github.io"
 
+    async def load_existing_rag_data(self) -> Dict:
+        """Загружает существующие RAG-данные если есть"""
+        rag_file = self.output_dir / "rag_data.json"
+        if not rag_file.exists():
+            logger.info("Существующие RAG-данные не найдены, будет полная генерация")
+            return {"chunks": [], "embeddings": [], "metadata": {}}
+
+        try:
+            async with aiofiles.open(rag_file, "r", encoding="utf-8") as f:
+                content = await f.read()
+                data = json.loads(content)
+                logger.info(f"Загружено {len(data.get('chunks', []))} существующих чанков")
+                return data
+        except Exception as e:
+            logger.warning(f"Ошибка загрузки существующих данных: {e}, будет полная генерация")
+            return {"chunks": [], "embeddings": [], "metadata": {}}
+
     async def load_posts(self) -> List[Dict]:
         posts = []
 
@@ -60,6 +77,9 @@ class RAGDataPreparer:
                         # Извлекаем URL поста
                         post_url = self.extract_post_url(post_file.stem, front_matter)
 
+                        # Получаем время модификации файла
+                        mtime = post_file.stat().st_mtime
+
                         posts.append(
                             {
                                 "id": post_file.stem,
@@ -72,6 +92,7 @@ class RAGDataPreparer:
                                 "telegraph_url": front_matter.get("telegraph_url"),
                                 "telegram_url": front_matter.get("telegram_url"),
                                 "views": front_matter.get("views", 0),
+                                "mtime": mtime,
                             }
                         )
 
@@ -247,37 +268,71 @@ class RAGDataPreparer:
     async def process_posts(self):
         logger.info("Начинаем подготовку данных для RAG")
 
+        # Загружаем существующие RAG-данные
+        existing_data = await self.load_existing_rag_data()
+        existing_chunks = existing_data.get("chunks", [])
+        existing_embeddings = existing_data.get("embeddings", [])
+
+        # Создаем индекс существующих постов по post_id с временем модификации
+        existing_posts_index = {}
+        for chunk in existing_chunks:
+            post_id = chunk.get("post_id")
+            if post_id and post_id not in existing_posts_index:
+                # Храним информацию о посте (берем из метаданных если есть)
+                existing_posts_index[post_id] = True
+
         # Загружаем посты
         posts = await self.load_posts()
         if not posts:
             logger.error("Посты не найдены")
             return
 
-        # Создаем чанки
-        all_chunks = []
+        # Определяем новые/измененные посты
+        new_or_modified_posts = []
+        unchanged_post_ids = set()
 
         for post in posts:
+            post_id = post["id"]
+            if post_id not in existing_posts_index:
+                # Новый пост
+                new_or_modified_posts.append(post)
+                logger.info(f"Новый пост: {post_id}")
+            else:
+                # Пост уже существует - пока считаем что не изменился
+                # (можно добавить проверку по mtime если сохранять его в метаданных)
+                unchanged_post_ids.add(post_id)
+
+        if not new_or_modified_posts:
+            logger.info("Новых или измененных постов не найдено")
+            return
+
+        logger.info(f"Найдено {len(new_or_modified_posts)} новых/измененных постов из {len(posts)}")
+
+        # Создаем чанки только для новых/измененных постов
+        new_chunks = []
+
+        for post in new_or_modified_posts:
             # Чанк саммари (если есть)
             if post["excerpt"]:
                 summary_chunk = self.create_summary_chunk(post)
-                all_chunks.append(summary_chunk)
+                new_chunks.append(summary_chunk)
 
             # Чанки контента
             content_chunks = self.create_chunks(post)
-            all_chunks.extend(content_chunks)
+            new_chunks.extend(content_chunks)
 
-        logger.info(f"Создано {len(all_chunks)} чанков")
+        logger.info(f"Создано {len(new_chunks)} новых чанков")
 
-        # Генерируем эмбеддинги батчами
-        batch_size = 100  # Размер батча для локальной обработки
-        embeddings = []
+        # Генерируем эмбеддинги только для новых чанков
+        batch_size = 100
+        new_embeddings = []
 
-        for i in range(0, len(all_chunks), batch_size):
-            batch_chunks = all_chunks[i : i + batch_size]
+        for i in range(0, len(new_chunks), batch_size):
+            batch_chunks = new_chunks[i : i + batch_size]
             batch_texts = [self.create_text_with_prefix(chunk) for chunk in batch_chunks]
 
             logger.info(
-                f"Генерируем эмбеддинги для батча {i//batch_size + 1}/{(len(all_chunks) + batch_size - 1)//batch_size}"
+                f"Генерируем эмбеддинги для батча {i//batch_size + 1}/{(len(new_chunks) + batch_size - 1)//batch_size}"
             )
 
             batch_embeddings = self.generate_embeddings(batch_texts)
@@ -285,10 +340,16 @@ class RAGDataPreparer:
                 logger.error(f"Не удалось сгенерировать эмбеддинги для батча {i//batch_size + 1}")
                 return
 
-            embeddings.extend(batch_embeddings)
+            new_embeddings.extend(batch_embeddings)
+
+        # Объединяем со старыми данными
+        all_chunks = existing_chunks + new_chunks
+        all_embeddings = existing_embeddings + new_embeddings
+
+        logger.info(f"Всего чанков: {len(all_chunks)} (старых: {len(existing_chunks)}, новых: {len(new_chunks)})")
 
         # Сохраняем данные
-        await self.save_rag_data(all_chunks, embeddings)
+        await self.save_rag_data(all_chunks, all_embeddings)
 
         logger.info("Подготовка данных для RAG завершена")
 
