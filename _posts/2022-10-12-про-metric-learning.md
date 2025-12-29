@@ -16,7 +16,7 @@ tags:
 telegram_url: https://t.me/varim_ml/67
 telegraph_url: https://telegra.ph/Pro-metric-learning-10-07
 title: Про metric learning
-views: 4186
+views: 4191
 ---
 
 # Про metric learning  

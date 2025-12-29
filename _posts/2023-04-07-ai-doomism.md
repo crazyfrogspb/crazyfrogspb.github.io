@@ -13,7 +13,7 @@ tags:
 telegram_url: https://t.me/varim_ml/86
 telegraph_url: https://telegra.ph/AI-Doomism-04-04
 title: AI Doomism
-views: 3948
+views: 3949
 ---
 
 # AI Doomism  
