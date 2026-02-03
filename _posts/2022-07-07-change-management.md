@@ -14,7 +14,7 @@ tags:
 telegram_url: https://t.me/varim_ml/58
 telegraph_url: https://telegra.ph/Change-Management-07-07
 title: Change Management
-views: 2288
+views: 2293
 ---
 
 # Change Management  

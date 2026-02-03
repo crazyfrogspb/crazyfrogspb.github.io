@@ -14,7 +14,7 @@ tags:
 telegram_url: https://t.me/varim_ml/59
 telegraph_url: https://telegra.ph/Kniga-ML-Design-Patterns-07-14
 title: Книга ML Design Patterns
-views: 2591
+views: 2597
 ---
 
 # Книга ML Design Patterns  

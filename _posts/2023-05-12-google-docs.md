@@ -10,7 +10,7 @@ source_url: https://docs.google.com/document/d/1fqHFMJK8bwrxp2lDBnqUJBOtfI5T2yF6
 tags: []
 telegram_url: https://t.me/varim_ml/88
 title: Google Docs
-views: 3513
+views: 3516
 ---
 
 # Все DETRы мира
