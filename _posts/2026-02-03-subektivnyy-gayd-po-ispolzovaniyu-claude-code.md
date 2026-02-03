@@ -12,7 +12,7 @@ tags:
 - llm
 telegram_url: https://t.me/varim_ml/174
 title: Субъективный гайд по использованию Claude Code
-views: 457
+views: 586
 ---
 
 # Субъективный гайд по использованию Claude Code
@@ -204,7 +204,7 @@ set -a && source .env && set +a && claude
 
 ### MCP
 
-MCP позволяют дать доступ CC ко всяким внешним тулзам. Очень важно - обязательно убедитесь, что либо даёте рид-доступ, либо явно выбираете, какие инструменты из MCP CC может использовать. Иначе можете случайно остаться без БД или прод-кластера.
+MCP позволяют дать доступ CC ко всяким внешним тулзам. Очень важно - обязательно убедитесь, что даёте рид-доступ. К сожалению, отключение конкретных инструментов почему-то пока не реализовано (https://github.com/anthropics/claude-code/issues/7328).  Иначе можете случайно остаться без БД или прод-кластера.
 
 Полезные MCP, которые я часто использую:
 - Postgres к различным БД с read-доступом
@@ -237,10 +237,10 @@ MCP позволяют дать доступ CC ко всяким внешним
 ```bash
 # 1. Создать worktree для багфикса (из основного проекта)
 cd /path/to/project
-git worktree add ../project-hotfix release/1.0
+git worktree add ../out-of-memory releases/v0.22.1b
 
 # 2. Перейти и запустить Claude
-cd ../project-hotfix
+cd ../out-of-memory
 claude
 ```
 
@@ -250,7 +250,7 @@ claude
 cd /path/to/project
 
 # Удалить worktree
-git worktree remove ../project-hotfix
+git worktree remove ../out-of-memory
 ```
 
 ### Работа с CC в IDE
