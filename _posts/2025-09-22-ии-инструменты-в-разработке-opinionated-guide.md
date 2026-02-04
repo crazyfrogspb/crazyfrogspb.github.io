@@ -13,7 +13,7 @@ tags:
 telegram_url: https://t.me/varim_ml/164
 telegraph_url: https://telegra.ph/II-instrumenty-v-razrabotke-09-20
 title: ИИ-инструменты в разработке - Opinionated Guide
-views: 3427
+views: 3429
 ---
 
 # ИИ-инструменты в разработке - Opinionated Guide  
