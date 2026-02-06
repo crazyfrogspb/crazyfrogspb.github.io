@@ -536,12 +536,14 @@ class TelegraphSyncer:
                     remaining = caption_match.group(2)
                     parts.append(img)
                     if caption:
+                        parts.append("")
                         parts.append(f"*{caption}*")
                     parts.append("")
                 else:
                     caption = after.strip()
                     parts.append(img)
                     if caption:
+                        parts.append("")
                         parts.append(f"*{caption}*")
                     remaining = ""
 
