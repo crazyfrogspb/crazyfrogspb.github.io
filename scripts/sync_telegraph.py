@@ -257,6 +257,9 @@ class TelegraphSyncer:
                         # Конвертируем в Markdown
                         content = self.h2t.handle(str(article))
 
+                        # Исправляем подписи к картинкам (figcaption -> курсив под картинкой)
+                        content = self.fix_image_captions(content)
+
                         # Убираем имена автора, которые Telegraph добавляет автоматически
                         content = self.clean_telegraph_author(content)
 
@@ -500,6 +503,52 @@ class TelegraphSyncer:
         except Exception as e:
             logger.warning(f"Ошибка загрузки через HTTP/2 {src}: {e}")
             return None
+
+    def fix_image_captions(self, content: str) -> str:
+        """Исправляет подписи к картинкам: ![](img)Текст -> ![](img)\n*Текст*"""
+
+        def fix_line(line: str) -> str:
+            if not re.search(r"!\[.*?\]\(.*?\)\S", line):
+                return line
+
+            parts = []
+            remaining = line.strip()
+
+            while remaining:
+                m = re.match(r"(!\[[^\]]*\]\([^)]+\))(.*)", remaining)
+                if not m:
+                    if remaining.strip():
+                        parts.append(remaining.strip())
+                    break
+
+                img = m.group(1)
+                after = m.group(2)
+
+                next_img = re.match(r"(!\[[^\]]*\]\([^)]+\))", after)
+                if next_img:
+                    parts.append(img)
+                    remaining = after
+                    continue
+
+                caption_match = re.match(r"(.+?)(!\[.+)", after)
+                if caption_match:
+                    caption = caption_match.group(1).strip()
+                    remaining = caption_match.group(2)
+                    parts.append(img)
+                    if caption:
+                        parts.append(f"*{caption}*")
+                    parts.append("")
+                else:
+                    caption = after.strip()
+                    parts.append(img)
+                    if caption:
+                        parts.append(f"*{caption}*")
+                    remaining = ""
+
+            return "\n".join(parts)
+
+        lines = content.split("\n")
+        return "\n".join(fix_line(line) for line in lines)
 
     def clean_telegraph_author(self, content: str) -> str:
         # Список возможных имен автора для удаления
