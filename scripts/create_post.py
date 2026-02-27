@@ -5,6 +5,7 @@ import hashlib
 import os
 import re
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,9 @@ from openai import AsyncOpenAI
 from telethon import TelegramClient
 
 load_dotenv()
+
+# Фикс: при переключении раскладки терминал может вставить невалидные UTF-8 байты
+sys.stdin.reconfigure(errors="replace")
 
 
 def get_image_extension(content_type: str, url: str) -> str:
