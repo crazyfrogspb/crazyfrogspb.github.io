@@ -15,7 +15,7 @@ tags:
 telegram_url: https://t.me/varim_ml/148
 telegraph_url: https://telegra.ph/AI-Engineering---obzor-knigi-03-31
 title: AI Engineering - обзор книги
-views: 3692
+views: 3701
 ---
 
 # AI Engineering - обзор книги  

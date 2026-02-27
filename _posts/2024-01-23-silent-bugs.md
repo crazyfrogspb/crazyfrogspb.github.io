@@ -14,7 +14,7 @@ tags:
 telegram_url: https://t.me/varim_ml/115
 telegraph_url: https://telegra.ph/Silent-bugs-01-23
 title: Silent bugs
-views: 3695
+views: 3697
 ---
 
 # Silent bugs  
