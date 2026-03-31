@@ -471,7 +471,7 @@ ${finalContext}
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://crazyfrogspb.github.io',
-        'X-Title': 'Варим ML RAG Chat'
+        'X-Title': 'Varim ML RAG Chat'
       },
       body: JSON.stringify({
         model: CONFIG.DEFAULT_MODEL,
