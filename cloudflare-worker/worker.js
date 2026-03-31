@@ -23,18 +23,8 @@ const CONFIG = {
   // OpenRouter API
   OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
 
-  // Модель по умолчанию (бесплатная)
-  DEFAULT_MODEL: 'google/gemma-3-27b-it:free',
-
-  // Доступные бесплатные модели (только рабочие)
-  FREE_MODELS: [
-    'google/gemma-3-27b-it:free',
-    'meta-llama/llama-3.3-70b-instruct:free',
-    'tngtech/deepseek-r1t-chimera:free'
-  ],
-
-  // Модель для валидации запросов (быстрая)
-  VALIDATION_MODEL: 'google/gemma-3-27b-it:free',
+  // Модель по умолчанию (OpenRouter сам выбирает бесплатную)
+  DEFAULT_MODEL: 'openrouter/free',
 
   // Максимальная длина контекста
   MAX_CONTEXT_LENGTH: 8000,
@@ -248,7 +238,7 @@ async function validateQuery(query, history = []) {
     }
 
     const validationRequest = {
-      model: CONFIG.VALIDATION_MODEL,
+      model: CONFIG.DEFAULT_MODEL,
       messages: [
         {
           role: 'system',
@@ -324,14 +314,7 @@ async function handleRAGRequest(request) {
       }, 400, request.headers.get('Origin'));
     }
 
-    // Валидация модели (только бесплатные)
-    const requestedModel = body.model || CONFIG.DEFAULT_MODEL;
-    if (!CONFIG.FREE_MODELS.includes(requestedModel)) {
-      return createJSONResponse({
-        error: 'Invalid model',
-        message: `Модель ${requestedModel} не поддерживается. Доступные модели: ${CONFIG.FREE_MODELS.join(', ')}`
-      }, 400, request.headers.get('Origin'));
-    }
+    const requestedModel = CONFIG.DEFAULT_MODEL;
 
     // Ограничиваем длину контекста
     const contextText = body.context
@@ -421,7 +404,7 @@ async function handleRAGRequest(request) {
 async function handleRAGChatRequest(request) {
   try {
     const body = await request.json();
-    const { query, context, history = [], model = CONFIG.DEFAULT_MODEL } = body;
+    const { query, context, history = [] } = body;
 
     // Валидация входных данных
     if (!query || typeof query !== 'string') {
@@ -435,14 +418,6 @@ async function handleRAGChatRequest(request) {
       return createJSONResponse({
         error: 'Invalid input',
         message: 'Поле context обязательно и должно быть строкой'
-      }, 400, request.headers.get('Origin'));
-    }
-
-    // Проверяем, что модель из списка бесплатных
-    if (!CONFIG.FREE_MODELS.includes(model)) {
-      return createJSONResponse({
-        error: 'Invalid model',
-        message: 'Разрешены только бесплатные модели'
       }, 400, request.headers.get('Origin'));
     }
 
@@ -477,74 +452,53 @@ ${finalContext}
 
 Отвечай на вопрос пользователя, основываясь только на этом контексте.`;
 
-    // Перебираем модели при ошибках
-    let answer = null;
-    let usedModel = model;
-    let lastError = null;
-
-    // Список моделей для перебора (начинаем с запрошенной)
-    const modelsToTry = [model, ...CONFIG.FREE_MODELS.filter(m => m !== model)];
-
-    for (const tryModel of modelsToTry) {
-      console.log(`Пробуем модель: ${tryModel}`);
-
-      try {
-        // Формируем messages с историей чата
-        const messages = [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          // Добавляем историю предыдущих сообщений (если есть)
-          ...history,
-          // Текущий вопрос пользователя
-          {
-            role: 'user',
-            content: query
-          }
-        ];
-
-        const openRouterResponse = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://crazyfrogspb.github.io',
-            'X-Title': 'Варим ML RAG Chat'
-          },
-          body: JSON.stringify({
-            model: tryModel,
-            messages: messages,
-            max_tokens: tryModel.includes('qwen') ? 1500 : 1000,
-            temperature: 0.7,
-            top_p: 0.9
-          })
-        });
-
-        if (openRouterResponse.ok) {
-          const result = await openRouterResponse.json();
-          answer = result.choices?.[0]?.message?.content?.trim();
-          if (answer) {
-            usedModel = tryModel;
-            console.log(`✅ Успешно с моделью: ${tryModel}`);
-            break;
-          }
-        } else {
-          const errorText = await openRouterResponse.text();
-          lastError = errorText;
-          console.log(`❌ Модель ${tryModel} не работает:`, errorText);
-        }
-      } catch (error) {
-        lastError = error.message;
-        console.log(`❌ Ошибка с моделью ${tryModel}:`, error.message);
+    // Формируем messages с историей чата
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      },
+      ...history,
+      {
+        role: 'user',
+        content: query
       }
-    }
+    ];
 
-    if (!answer) {
-      console.error('Все модели не работают, последняя ошибка:', lastError);
+    const openRouterResponse = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://crazyfrogspb.github.io',
+        'X-Title': 'Варим ML RAG Chat'
+      },
+      body: JSON.stringify({
+        model: CONFIG.DEFAULT_MODEL,
+        messages: messages,
+        max_tokens: 1000,
+        temperature: 0.7,
+        top_p: 0.9
+      })
+    });
+
+    if (!openRouterResponse.ok) {
+      const errorText = await openRouterResponse.text();
+      console.error('OpenRouter error:', openRouterResponse.status, errorText);
       return createJSONResponse({
         error: 'API error',
-        message: 'Все доступные модели недоступны в вашем регионе'
+        message: 'Ошибка при обращении к AI модели. Попробуйте позже.'
+      }, 500, request.headers.get('Origin'));
+    }
+
+    const result = await openRouterResponse.json();
+    const answer = result.choices?.[0]?.message?.content?.trim();
+    const usedModel = result.model || CONFIG.DEFAULT_MODEL;
+
+    if (!answer) {
+      return createJSONResponse({
+        error: 'API error',
+        message: 'Модель не вернула ответ. Попробуйте позже.'
       }, 500, request.headers.get('Origin'));
     }
 
