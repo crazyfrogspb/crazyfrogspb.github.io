@@ -271,9 +271,9 @@ class PostCreator:
 
 Саммари должно быть информативным для читателя. Авторский стиль саммери должен максимально соответствовать стилю поста. Не говори об "авторе" в третье лице, просто пиши, о чём пост. Отвечай только текстом саммари без дополнительных комментариев."""
 
-            print("🤖 Генерируем excerpt через Claude 3.5 Haiku...")
+            print("🤖 Генерируем excerpt через Claude Haiku 4.5...")
             response = await self.openai_client.chat.completions.create(
-                model="anthropic/claude-3.5-haiku",
+                model="anthropic/claude-haiku-4.5",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=256,
                 temperature=0.5,

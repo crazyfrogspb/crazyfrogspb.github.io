@@ -7,11 +7,28 @@ import asyncio
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse, unquote
 from dotenv import load_dotenv
 from telethon import TelegramClient
 import yaml
 
 load_dotenv()
+
+
+def build_telethon_proxy():
+    """Парсит TELEGRAM_PROXY вида socks5://user:pass@host:port в кортеж для Telethon."""
+    raw = os.getenv("TELEGRAM_PROXY")
+    if not raw:
+        return None
+    import socks
+    u = urlparse(raw)
+    scheme_map = {"socks5": socks.SOCKS5, "socks4": socks.SOCKS4, "http": socks.HTTP}
+    proxy_type = scheme_map.get(u.scheme.lower())
+    if proxy_type is None:
+        raise ValueError(f"Unsupported proxy scheme: {u.scheme}")
+    user = unquote(u.username) if u.username else None
+    pwd = unquote(u.password) if u.password else None
+    return (proxy_type, u.hostname, u.port, True, user, pwd)
 
 
 async def update_views():
@@ -24,8 +41,12 @@ async def update_views():
         print("❌ Не установлены TELEGRAM_API_ID и TELEGRAM_API_HASH")
         return
 
+    proxy = build_telethon_proxy()
+    if proxy:
+        print(f"🌐 Используем прокси {proxy[0]} {proxy[1]}:{proxy[2]}")
+
     # Подключаемся к Telegram
-    client = TelegramClient("session", api_id, api_hash)
+    client = TelegramClient("session", api_id, api_hash, proxy=proxy)
     await client.connect()
 
     if not await client.is_user_authorized():
