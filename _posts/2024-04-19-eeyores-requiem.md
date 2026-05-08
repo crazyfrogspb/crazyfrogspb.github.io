@@ -13,7 +13,7 @@ tags:
 telegram_url: https://t.me/varim_ml/123
 telegraph_url: https://telegra.ph/Eeyores-Requiem-04-19
 title: Eeyore’s Requiem
-views: 3799
+views: 3801
 ---
 
 # Eeyore’s Requiem  

@@ -12,7 +12,7 @@ tags:
 - management
 telegram_url: https://t.me/varim_ml/175
 title: Что будет с джунами в эпоху ИИ-кодинга?
-views: 2419
+views: 2516
 ---
 
 # Что будет с джунами в эпоху ИИ-кодинга?
