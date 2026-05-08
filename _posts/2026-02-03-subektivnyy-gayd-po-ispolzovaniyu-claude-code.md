@@ -12,7 +12,7 @@ tags:
 - llm
 telegram_url: https://t.me/varim_ml/174
 title: Субъективный гайд по использованию Claude Code
-views: 3127
+views: 3132
 ---
 
 # Субъективный гайд по использованию Claude Code
