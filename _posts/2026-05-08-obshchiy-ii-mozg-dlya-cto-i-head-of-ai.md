@@ -14,7 +14,7 @@ tags:
 - llm
 - management
 title: Общий ИИ-мозг для CTO и Head of AI
-views: 195
+views: 220
 ---
 
 Какое-то время назад расхайпилась идея [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) от Карпатого. Да и в целом без него постоянно всплывают всякие посты на тему использования Claude Code поверх Obsidian Vault.
