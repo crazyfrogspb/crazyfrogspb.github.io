@@ -429,7 +429,7 @@ class PostCreator:
         front_matter = {
             "layout": "post",
             "title": title,
-            "date": post_date.strftime("%Y-%m-%d %H:%M:%S +0000"),
+            "date": post_date.strftime("%Y-%m-%d %H:%M:%S +0300"),
             "tags": tags,
             "views": views,
             "source_type": source_type,
