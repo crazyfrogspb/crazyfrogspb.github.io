@@ -15,7 +15,7 @@ tags:
 telegram_url: https://t.me/varim_ml/71
 telegraph_url: https://telegra.ph/Learn-Learn-and-Learn-11-03
 title: Learn, Learn and Learn
-views: 3548
+views: 3549
 ---
 
 # Learn, Learn and Learn  

@@ -15,7 +15,7 @@ tags:
 - management
 telegram_url: https://t.me/varim_ml/186
 title: 'От чат-бота к Claude Tag: как мы встраиваем ИИ-агентов в работу Цельса'
-views: 70
+views: 2858
 ---
 
 # От чат-бота к Claude Tag: как мы встраиваем агентов в работу Цельса
