@@ -18,6 +18,7 @@ url: "https://crazyfrogspb.github.io" # the base hostname & protocol for your si
 # Build settings
 theme: minima
 future: true  # Публиковать посты с датой в будущем
+timezone: Europe/Moscow  # Даты в постах +0300, иначе URL ночных постов уезжают на день назад
 plugins:
   - jekyll-feed
   - jekyll-sitemap
