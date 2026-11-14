@@ -4,7 +4,7 @@ excerpt: В посте рассказывается о том, как ИИ-аг�
 layout: post
 source_type: direct
 tags:
-- �жека
+- жека
 - llm
 title: Как протестировать то, не знаем что?
 views: 0
