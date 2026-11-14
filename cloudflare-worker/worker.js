@@ -465,35 +465,45 @@ ${finalContext}
       }
     ];
 
-    const openRouterResponse = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://crazyfrogspb.github.io',
-        'X-Title': 'Varim ML RAG Chat'
-      },
-      body: JSON.stringify({
-        model: CONFIG.DEFAULT_MODEL,
-        messages: messages,
-        max_tokens: 1000,
-        temperature: 0.7,
-        top_p: 0.9
-      })
-    });
+    // openrouter/free каждый раз выбирает случайную бесплатную модель; «думающие»
+    // модели могут потратить весь лимит на рассуждения и вернуть пустой content,
+    // поэтому лимит с запасом и одна повторная попытка на другой модели.
+    let answer = null;
+    let usedModel = CONFIG.DEFAULT_MODEL;
+    for (let attempt = 1; attempt <= 2 && !answer; attempt++) {
+      const openRouterResponse = await fetch(`${CONFIG.OPENROUTER_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://crazyfrogspb.github.io',
+          'X-Title': 'Varim ML RAG Chat'
+        },
+        body: JSON.stringify({
+          model: CONFIG.DEFAULT_MODEL,
+          messages: messages,
+          max_tokens: 4000,
+          temperature: 0.7,
+          top_p: 0.9
+        })
+      });
 
-    if (!openRouterResponse.ok) {
-      const errorText = await openRouterResponse.text();
-      console.error('OpenRouter error:', openRouterResponse.status, errorText);
-      return createJSONResponse({
-        error: 'API error',
-        message: 'Ошибка при обращении к AI модели. Попробуйте позже.'
-      }, 500, request.headers.get('Origin'));
+      if (!openRouterResponse.ok) {
+        const errorText = await openRouterResponse.text();
+        console.error('OpenRouter error:', openRouterResponse.status, errorText);
+        return createJSONResponse({
+          error: 'API error',
+          message: 'Ошибка при обращении к AI модели. Попробуйте позже.'
+        }, 500, request.headers.get('Origin'));
+      }
+
+      const result = await openRouterResponse.json();
+      answer = result.choices?.[0]?.message?.content?.trim();
+      usedModel = result.model || CONFIG.DEFAULT_MODEL;
+      if (!answer) {
+        console.warn('Empty answer', { attempt, model: usedModel, finish_reason: result.choices?.[0]?.finish_reason });
+      }
     }
-
-    const result = await openRouterResponse.json();
-    const answer = result.choices?.[0]?.message?.content?.trim();
-    const usedModel = result.model || CONFIG.DEFAULT_MODEL;
 
     if (!answer) {
       return createJSONResponse({
